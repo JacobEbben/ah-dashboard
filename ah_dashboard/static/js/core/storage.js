@@ -12,18 +12,19 @@ export const KEYS = {
   lang: 'ah_lang',
   view: 'ah_view',                // 'bargains' | 'bonus'
   bonusCat: 'ah_bonus_cat',       // selected Bonus category
-  bonusFilters: 'ah_bonus_filters',  // Bonus view: {types, minSave, sort}
-  bonusFiltersFolded: 'ah_bonus_filters_folded',   // unused since the filters became a sheet; kept so the name stays reserved
+  bonusFilters: 'ah_bonus_filters',  // Bonus view: {liked} (the Liked pill; older versions also kept filters here)
+  bonusFiltersFolded: 'ah_bonus_filters_folded',   // unused since the Bonus filters were removed; kept so the name stays reserved
   bonusGroups: 'ah_bonus_groups',  // Bonus category groups [{id, name, cats}]
   bonusGroupsFolded: 'ah_bonus_groups_folded',
   bonusNoticeSeen: 'ah_bonus_notice',  // start date of the Bonus week whose "liked on Bonus" notice was closed
   theme: 'ah_theme',              // 'dark' (absent = light, the default)
-  filtersFolded: 'ah_filters_folded',              // unused since the filters became a sheet; kept so the name stays reserved
+  filtersFolded: 'ah_filters_folded',             // bargains' Filters panel
   storesFolded: 'ah_stores_folded',
   listsFolded: 'ah_lists_folded',     // "Liked & hidden products" panel
   blacklist: 'ah_blacklist',      // hidden products [{key, title}]
   liked: 'ah_liked',              // liked products [{key, title}]
   showHidden: 'ah_show_hidden',   // "Show hidden products" toggle
+  inStore: 'ah_instore',         // "I'm in this store": {id, until}; per browser, not synced, expires
   cols: 'ah_cols',                // cards per row, '1'..'8' (absent = auto); per browser, not synced
 };
 

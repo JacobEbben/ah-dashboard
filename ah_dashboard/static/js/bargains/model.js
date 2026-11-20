@@ -14,14 +14,12 @@ import { productKey } from '../core/offers.js';
  * the selected ones.
  * @typedef {{all: boolean, selected: Set<string>}} Cats
  *
- * What the filters panel and the search field ask for.
+ * What the filters ask for. (Liking a product doesn't filter: it only puts it first, see sorter.)
  * @typedef {object} Filter
  * @property {Cats} cats
  * @property {number} minDisc minimum discount in percent (0 = any)
- * @property {boolean} bonusOnly only products in this week's Bonus
- * @property {boolean} [likedOnly] only liked products
- * @property {string[]} terms folded search words (all must match)
  * @property {boolean} showHidden show hidden products (dimmed)
+ * @property {number|null} [storeId] "I'm in this store": only this store's bargains
  */
 
 /** Product type of an offer ("Overig" without one). @param {Offer} o */
@@ -36,38 +34,54 @@ export function knownCats(items) {
 }
 
 /**
- * Apply the filters. ``bonus``: this week's Bonus as far as loaded. Returns
- * the offers to show, how many products the hidden filter left out, and why
- * the Bonus filter could not apply yet (null when it did or was off).
+ * Apply the filters. Returns the offers to show and how many products the
+ * hidden filter left out.
  * @param {Offer[]} items
  * @param {Filter} f
- * @param {{isHidden: (o: Offer) => boolean, isLiked?: (o: Offer) => boolean, fold: (s: unknown) => string,
- *          bonus: {status: string, deals: Map<number, string>}}} deps
- * @returns {{items: Offer[], hiddenCount: number, bonusPending: 'loading'|'failed'|null}}
+ * @param {{isHidden: (o: Offer) => boolean}} deps
+ * ``otherStores``: with ``storeId``, how many bargains that match the filters
+ * are at the other stores (so an empty list never reads as "nothing anywhere").
+ * @returns {{items: Offer[], hiddenCount: number, otherStores: number}}
  */
-export function filterOffers(items, f, { isHidden, isLiked, fold, bonus }) {
+export function filterOffers(items, f, { isHidden }) {
   let out = items.slice();
-  if (f.likedOnly && isLiked) out = out.filter(isLiked);
   if (!f.cats.all) out = out.filter(o => f.cats.selected.has(catKey(o)));
   if (f.minDisc > 0) out = out.filter(o => o.discount != null && Number(o.discount) >= f.minDisc);
-  // Only bargains that are also in this week's Bonus. Until the Bonus is
-  // loaded (or when it failed) nothing is filtered and the summary says why.
-  /** @type {'loading'|'failed'|null} */
-  let bonusPending = null;
-  if (f.bonusOnly) {
-    if (bonus.status === 'ready') out = out.filter(o => bonus.deals.has(Number(o.id)));
-    else bonusPending = bonus.status === 'failed' ? 'failed' : 'loading';
-  }
-  if (f.terms.length) {
-    out = out.filter(o => {
-      const name = fold(o.title);
-      return f.terms.every(w => name.includes(w));
-    });
-  }
   // Count products, not store entries (one product can be at several stores).
   const hiddenCount = new Set(out.filter(isHidden).map(productKey)).size;
   if (!f.showHidden) out = out.filter(o => !isHidden(o));
-  return { items: out, hiddenCount, bonusPending };
+  let otherStores = 0;
+  if (f.storeId != null) {
+    const here = out.filter(o => Number(o.storeId) === f.storeId);
+    otherStores = out.length - here.length;
+    out = here;
+  }
+  return { items: out, hiddenCount, otherStores };
+}
+
+/** "I'm in this store" lasts 2 hours, and never past midnight. */
+export const IN_STORE_MS = 2 * 60 * 60 * 1000;
+
+/** When "I'm in this store", started at ``now``, ends (ms). @param {Date} now */
+export function inStoreUntil(now) {
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
+  return Math.min(now.getTime() + IN_STORE_MS, midnight);
+}
+
+/**
+ * The remembered "I'm in this store" if it still applies: a followed store
+ * and not expired; else null.
+ * @param {unknown} saved what was stored ({id, until})
+ * @param {number} now ms
+ * @param {number[]} storeIds the followed stores
+ * @returns {number|null}
+ */
+export function activeInStore(saved, now, storeIds) {
+  if (!saved || typeof saved !== 'object') return null;
+  const { id, until } = /** @type {any} */ (saved);
+  if (!Number.isInteger(id) || !storeIds.includes(id)) return null;
+  if (typeof until !== 'number' || !(until > now) || until - now > IN_STORE_MS) return null;
+  return id;
 }
 
 /**

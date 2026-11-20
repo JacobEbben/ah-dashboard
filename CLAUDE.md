@@ -8,7 +8,7 @@ The server calls AH with ONE operator-configured AH login; visitors need no acco
 
 ## Commands (Docker only; no local venv/Node)
 
-Checks run in throwaway containers with the repo mounted read-only. `ci/check.sh` is what CI runs; all of these must stay green (490 pytest tests + ruff + mypy; 29 node tests at time of writing).
+Checks run in throwaway containers with the repo mounted read-only. `ci/check.sh` is what CI runs; all of these must stay green (507 pytest tests + ruff + mypy; 30 node tests at time of writing).
 
 ```bash
 docker compose up -d --build                                            # run on 127.0.0.1:8733, settings from .env
@@ -91,7 +91,7 @@ Plain ES modules with no build step. `main.js` is the composition root. Allowed 
 |---|---|
 | `core/` (dom, storage, i18n, api, events, config, format, unit, offers, layout) | nothing of the app |
 | `lists/` (likes, blacklist, keyed, panel) | core |
-| `ui/` (cards, density, theme, view, dragdrop, reorder, rename, sheet) | core, lists |
+| `ui/` (cards, density, theme, view, dragdrop, reorder, rename) | core, lists |
 | `sync/` (sync, merge) | core |
 | `bargains/`, `bonus/` | core, lists, ui; **never each other** |
 
@@ -104,7 +104,7 @@ Plain ES modules with no build step. `main.js` is the composition root. Allowed 
 
 - **Key-derivation labels** in `__init__.py`: `SESSION_KEY_LABEL = b"ah-bargains flask session v1"`, `TOKEN_STORE_LABEL = b"ah-bargains token store v1"`. They keep the old project name on purpose; changing them makes the stored AH login unreadable and signs everyone out.
 - **The seal secret**: `TOKEN_SEAL_SECRET`, or a generated `instance/token_seal.secret`. It must never be stored in the database, and changing it has the same effect as changing the labels.
-- **localStorage keys** in `static/js/core/storage.js` `KEYS` (`ah_settings`, `ah_presets`, `ah_preset_order`, `ah_stores`, `ah_lang`, `ah_view`, `ah_bonus_cat`, `ah_bonus_filters`, `ah_bonus_groups`, `ah_bonus_notice`, `ah_theme`, `ah_blacklist`, `ah_liked`, `ah_show_hidden`, `ah_cols`, `*_folded`), plus `ah_sync` in `sync/sync.js`. Renaming one wipes users' settings. `theme-init.js` also reads `ah_theme`.
+- **localStorage keys** in `static/js/core/storage.js` `KEYS` (`ah_settings`, `ah_instore`, `ah_presets`, `ah_preset_order`, `ah_stores`, `ah_lang`, `ah_view`, `ah_bonus_cat`, `ah_bonus_filters`, `ah_bonus_groups`, `ah_bonus_notice`, `ah_theme`, `ah_blacklist`, `ah_liked`, `ah_show_hidden`, `ah_cols`, `*_folded`), plus `ah_sync` in `sync/sync.js`. Renaming one wipes users' settings. `theme-init.js` also reads `ah_theme`.
 - **Cookie name**: `ahb_admin` / `__Host-ahb_admin` (when `ADMIN_COOKIE_SECURE`). Session keys: `sid`, `csrf`, `user`, `admin_login_at`, `admin_seen_at`, `admin_pw`, `google_signin`.
 - **One server process / one instance per AH login.** AH rotates the refresh token on every renewal, so a second process or deployment invalidates the other's token. `ah-deploy` stops the old container before starting the new one. Rate limits, lockouts and caches are in memory.
 - **No custom User-Agent towards AH GraphQL** (`AH_USER_AGENT` unset). A custom one made AH fail with "Subgraph errors redacted".
@@ -175,7 +175,7 @@ Plain ES modules with no build step. `main.js` is the composition root. Allowed 
 
 ## Conventions
 
-- **i18n**: every UI string exists in both `en` and `nl` in `static/js/core/i18n.js` (`tests/js/core.test.js` checks the key sets match). Templates use `data-i18n`, `data-i18n-title`, `data-i18n-ph`, `data-i18n-aria`. Product names and categories from AH are not translated.
+- **i18n**: every UI string exists in both `en` and `nl` in `static/js/core/i18n.js` (`tests/js/core.test.js` checks the key sets match). `tests/test_i18n_keys.py` checks that every key the page asks for exists and every key is used (as a quoted string in JS, a `data-i18n*`/`data-title-key` attribute, or a Python string such as an API error code); keys built at run time need a prefix in its `DYNAMIC_PREFIXES`. Removing a feature means removing its texts. Templates use `data-i18n`, `data-i18n-title`, `data-i18n-ph`, `data-i18n-aria`. Product names and categories from AH are not translated.
 - **localStorage**: only through `core/storage.js` (`storage.get/set/remove/getJSON/setJSON/setQuiet`); `test_all_storage_access_goes_through_storage_js` enforces this (`theme-init.js` excepted). `set`/`remove` notify the sync listeners only on real changes. Use `setQuiet` for bookkeeping that must not trigger an upload.
 - **JS typing**: every JS file starts with `// @ts-check` (`theme-init.js` excepted, as a classic script) and uses JSDoc types.
 - **Result grids**: build sections with `ui/cards.section()` and place them with `placeSections(grid, sections, cols, dense)`; `core/layout.packSections` decides bands and columns.
@@ -235,6 +235,7 @@ Plain ES modules with no build step. `main.js` is the composition root. Allowed 
 - `AHGateway.configured` treats fakes without a `configured` attribute as configured.
 - The `TTLCache` stale-reload uses `scheduler.spawn` (a no-op after `scheduler.stop()`). In tests `BARGAINS_STALE_SECONDS=0`, so there are no background reloads.
 - `KnownStores` is loaded from the `known_stores` table at start-up and capped at 20,000 ids.
-- Filters live in sheets: `<dialog>`s opened by `ui/sheet.makeSheet` (`#filterSheet` for bargains, `#bonusFilterSheet` for Bonus), at the bottom of the screen on phones (CSS only, ≤700px). The buttons show the number of active filters (`#filterCount`, `#bonusFilterCount`). The bargains' minimum-discount dropdown (`#minDiscSel`) and presets stay in the chip strip on the page (`_quickbar.html`); Liked / Bonus only are in the sheet, which scrolls sideways on phones. `KEYS.filtersFolded`/`bonusFiltersFolded` are no longer used.
+- Bargains page, top to bottom: store chips (`_store_strip.html`; ＋ opens the Stores panel), the minimum-discount buttons (`#minDisc`) and the presets strip (`_quickbar.html`), then the panel row: Filters (`_filters_panel.html`, a `makeFoldable` panel: group, sort, product types, presets; `#filterCount`), Stores, Liked & hidden. Remove filters (`#clearFilters`) is always shown, disabled when nothing filters, and leaves stores alone. There is no product search, no "Bonus only" and no "liked only" filter (old `bonusOnly`/`likedOnly` settings are ignored): liking only puts a product first among equals (`model.sorter`). The Bonus view has no filters: offers are in AH's order, liked first (`bonus/model.sortOffers`); `ah_bonus_filters` only keeps the Liked pill (`{liked}`). There are no dialogs/sheets.
+- "I'm in this store": tapping a store chip stores `ah_instore` `{id, until}` (per device, not synced; `model.inStoreUntil` = 2 h or midnight, `activeInStore` validates). The chip row is then replaced by `#inStoreBar` at the same height; `filterOffers` gets `storeId` and returns `otherStores` for the summary.
 - Admin templates are server-rendered with no JS; admin POSTs redirect with `flash()` messages.
 - `/api/*` responses and every HTML page are `Cache-Control: no-store` (pages carry the CSRF token and account in `app-config`); admin pages also `X-Robots-Tag: noindex, nofollow`. Static files use Flask's defaults (no `SEND_FILE_MAX_AGE_DEFAULT` is set).

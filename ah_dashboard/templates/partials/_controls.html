@@ -1,8 +1,19 @@
 <div class="controls">
   <h1 class="apptitle" data-i18n="title"></h1>
+  {# Phones: the view switch, cards per row and Refresh share one line (app.css .toolline). #}
+  <div class="toolline">
   <div class="viewswitch" role="group" data-i18n-aria="viewSwitch">
     <button type="button" class="viewbtn" data-view="bargains" data-i18n="viewBargains" aria-pressed="true"></button>
     <button type="button" class="viewbtn" data-view="bonus" data-i18n="viewBonus" aria-pressed="false"></button>
+  </div>
+  {# Cards per row: Auto (fits the screen) until the slider is moved, then 1-8, capped to what fits (static/js/ui/density.js). #}
+  <div class="colsctl" role="group" data-i18n-aria="cardsPerRow">
+    <label for="colsRange" class="colslabel" data-i18n="perRow"></label>
+    <input type="range" id="colsRange" min="1" max="8" step="1" value="4" data-i18n-title="cardsPerRow">
+    <output id="colsValue" for="colsRange"></output>
+  </div>
+  <button id="go" type="button" data-i18n="refresh" data-i18n-title="refreshTitle"></button>
+  <button id="forceRefresh" type="button" class="secondary" data-i18n="forceRefresh" data-i18n-title="forceRefreshTitle" hidden></button>
   </div>
   <select id="lang" class="langsel" data-i18n-aria="language" data-i18n-title="language">
     <option value="nl">NL</option>
@@ -12,14 +23,6 @@
     <option value="light" data-i18n="themeLight"></option>
     <option value="dark" data-i18n="themeDark"></option>
   </select>
-  {# Cards per row: Auto (fits the screen) until the slider is moved, then 1-8, capped to what fits (static/js/ui/density.js). #}
-  <div class="colsctl" role="group" data-i18n-aria="cardsPerRow">
-    <label for="colsRange" class="colslabel" data-i18n="perRow"></label>
-    <input type="range" id="colsRange" min="1" max="8" step="1" value="4" data-i18n-title="cardsPerRow">
-    <output id="colsValue" for="colsRange"></output>
-  </div>
-  <button id="go" type="button" data-i18n="refresh" data-i18n-title="refreshTitle"></button>
-  <button id="forceRefresh" type="button" class="secondary" data-i18n="forceRefresh" data-i18n-title="forceRefreshTitle" hidden></button>
   {% if admin_link %}
   <a class="secondary authbtn" href="{{ url_for('admin.index') }}" data-i18n="adminPanel" data-i18n-title="adminPanelTitle"></a>
   {% endif %}

@@ -1,15 +1,13 @@
-{# The bargains' quick switches in one strip: the minimum discount (a dropdown), then the presets (named product-type selections). On phones the strip scrolls
-   sideways instead of wrapping onto many rows. The other settings are in the Filters sheet
-   (_filters_panel.html; static/js/bargains/filters.js, presets.js). #}
+{# The bargains' quick switches: the minimum discount (one tap, always visible), then the presets
+   (named product-type selections) in a row that scrolls sideways on phones
+   (static/js/bargains/filters.js, presets.js). #}
+<div id="minDisc" class="segmented discseg" role="group" data-i18n-aria="minDisc">
+  <button type="button" class="segbtn" data-disc="0" data-i18n="all" aria-pressed="true"></button>
+  {% for n in (25, 40, 70) %}
+  <button type="button" class="segbtn" data-disc="{{ n }}" data-i18n="discPlus" data-n="{{ n }}" aria-pressed="false"></button>
+  {% endfor %}
+</div>
 <div class="quickbar chipstrip">
-  <label for="minDiscSel" class="sronly" data-i18n="minDisc"></label>
-  <select id="minDiscSel" class="chipselect">
-    <option value="0" data-i18n="anyDiscount"></option>
-    {% for n in (25, 40, 70) %}
-    <option value="{{ n }}" data-i18n="minN" data-n="{{ n }}"></option>
-    {% endfor %}
-  </select>
-  <span class="quicksep" aria-hidden="true"></span>
   {# Presets: "All types" plus the saved product-type selections (drag to reorder, double-click to rename). #}
   <div id="presetBar" class="presetbar" role="group" data-i18n-aria="presets"></div>
   {# Screen readers: "Moved preset X to position 2 of 4" after Alt+arrow keys. #}

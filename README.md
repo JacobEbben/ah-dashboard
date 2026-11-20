@@ -14,9 +14,10 @@ It also offers an admin panel (`/admin`), a privacy page with data export/delete
 ## Features
 
 ### Bargains view
-- Find stores by Dutch postal code (`1234AB` or `1234`; AH's store search only accepts postal codes) and keep your own list of stores, each with its own colour.
+- Find stores by Dutch postal code (`1234AB` or `1234`; AH's store search only accepts postal codes) and keep your own list of stores, each with its own colour, shown as chips at the top.
+- **I'm in this store**: tap a store chip to see only that store's bargains (the count line says how many match at your other stores). It ends when tapped again, after 2 hours or at midnight, and is kept per device.
 - Bargains of up to `MAX_STORES` (default 25) stores at once, loaded in parallel. One failing store doesn't fail the others; it shows a generic message plus an error reference.
-- Quick bar: "Remove filters", minimum discount, **Liked** only, **Bonus** only (bargains that are also in this week's Bonus), group by, order by. These are always remembered.
+- Minimum discount as one-tap buttons, and a Filters panel: group by, order by, product types, presets. "Remove filters" is always in the count line. These are always remembered. Liking a product doesn't filter: liked products come first among equals.
 - Product types and **presets** (named product-type selections) that can be reordered by dragging or Alt+arrow keys and renamed in place (double-click or F2).
 - An "Overview" per store (number of products, stock, liked, hidden, ending today, average discount, per discount level). Every number is clickable and shows exactly those items.
 - A green alert bar for the special product "AH Groente & Fruit zakje", which AH lists as a bargain with a 0% discount (`bargains/model.isSpecial`).
@@ -26,7 +27,7 @@ It also offers an admin panel (`/admin`), a privacy page with data export/delete
 ### Bonus view
 - One AH Bonus category at a time (pills), or your own **category groups**. You make a group by dragging a category pill onto another one. Groups can also be managed in a panel (rename, add, remove, delete; works with the keyboard).
 - A **Liked** filter that shows every liked product on Bonus this week. A notice bar tells you when liked products are on Bonus.
-- "Filters & sorting": deal type (`percent`, `amount`, `fixed`, `multi`, `other`), minimum saving, sort order.
+- Offers in AH's own order, liked products first.
 - Group deals ("Alle …") list the products they cover. Their "from" price is the cheapest product's bonus price.
 
 ### Both views

@@ -1,27 +1,26 @@
 // @ts-check
-// The bargains' filter settings: the quick strip (min. discount dropdown,
-// Remove filters) and the Filters sheet ("liked only", "also in the Bonus",
-// group by, order by, the product types; presets are named product-type selections,
-// presets.js), plus the name search. The Filters button shows how many
-// filters are on. This module owns these settings; when one changes it emits
+// The bargains' filter settings: the minimum-discount buttons, Remove filters,
+// and the Filters panel ("also in the Bonus", group by, order by, the product
+// types; presets are named product-type selections, presets.js). The Filters
+// button shows how many of the panel's filters are on. Liking a product is
+// not a filter: liked products only come first among equals (model.sorter). This module owns these settings; when one changes it emits
 // EV.refilter (the controller re-renders) and, once saved, EV.settings
 // (presets mark the active one).
-import { $, setSelect } from '../core/dom.js';
+import { $, makeFoldable, setSelect } from '../core/dom.js';
 import { emit, EV, on } from '../core/events.js';
-import { searchTerms } from '../core/format.js';
 import { t } from '../core/i18n.js';
 import { KEYS, storage } from '../core/storage.js';
 import { showHiddenEnabled } from '../lists/blacklist.js';
-import { makeSheet } from '../ui/sheet.js';
 import { knownCats } from './model.js';
+import { inStoreId } from './stores.js';
 
 /** @typedef {import('./model.js').Cats} Cats */
 /** @typedef {import('./model.js').Filter} Filter */
 /** @typedef {import('../core/offers.js').Offer} Offer */
 /**
- * Settings as always remembered (ah_settings, synced). Presets store only ``cats``
+ * Settings as always remembered (ah_settings, synced). Older ones may still have likedOnly: ignored. Presets store only ``cats``
  * (older presets have the other fields too; they are ignored).
- * @typedef {{minDisc?: string, likedOnly?: boolean, bonusOnly?: boolean, sortBy?: string, groupBy?: string, cats?: 'all'|string[]}} Settings
+ * @typedef {{minDisc?: string, sortBy?: string, groupBy?: string, cats?: 'all'|string[]}} Settings
  */
 
 /** @returns {Cats} */
@@ -29,11 +28,7 @@ const ALL_CATS = () => ({ all: true, selected: new Set() });
 
 /** @type {Cats} */
 let cats = ALL_CATS();
-/** "Only liked bargains" (likedOnly setting; in the sheet). */
-let likedOnlyOn = false;
-/** "Only bargains also in this week's Bonus" (bonusOnly setting; in the sheet). */
-let bonusOnlyOn = false;
-/** Minimum discount in percent, as text: one of the strip dropdown's values. */
+/** Minimum discount in percent, as text: one of the discount buttons' values. */
 let minDiscValue = '0';
 const MIN_DISCS = ['0', '25', '40', '70'];
 /** @type {() => Offer[]} the loaded bargains (set by initFilters) */
@@ -42,20 +37,17 @@ let items = () => [];
 /** A setting changed: re-render, leaving any overview selection. */
 const refilter = () => { syncFilterState(); emit(EV.refilter, { clearFocus: true }); };
 
-/** Filters in the sheet that hide bargains (the strip's discount dropdown shows its own value). */
-const sheetFilterCount = () => (cats.all ? 0 : 1) + (likedOnlyOn ? 1 : 0) + (bonusOnlyOn ? 1 : 0);
+/** Filters in the panel that hide bargains (the discount buttons show their own state). */
+const panelFilterCount = () => (cats.all ? 0 : 1);
 
-/** The count on the Filters button, and Remove filters only while something is filtered. */
+/** The count on the Filters button; Remove filters is enabled only while something is filtered. */
 function syncFilterState() {
-  const n = sheetFilterCount();
+  const n = panelFilterCount();
   const count = $('filterCount');
   count.hidden = n === 0;
   count.textContent = String(n);
-  $('filterMenuBtn').setAttribute('aria-label', n ? `${t('filters')}, ${t('filtersActive', n)}` : t('filters'));
-  const any = n > 0 || minDiscValue !== '0' || !!searchQuery();
-  $('minDiscSel').classList.toggle('active', minDiscValue !== '0');
-  $('clearFilters').hidden = !any;
-  /** @type {HTMLButtonElement} */ ($('sheetClear')).disabled = !any;
+  $('filterToggle').setAttribute('aria-label', n ? `${t('filters')}, ${t('filtersActive', n)}` : t('filters'));
+  /** @type {HTMLButtonElement} */ ($('clearFilters')).disabled = n === 0 && minDiscValue === '0';
 }
 
 // ---- product types -------------------------------------------------------------------
@@ -125,39 +117,21 @@ export function buildCategoryFilter(list) {
 }
 
 // ---- the other settings -----------------------------------------------------------------
-export const bonusOnly = () => bonusOnlyOn;
-
-/** @param {boolean} on */
-function setBonusOnly(on) {
-  bonusOnlyOn = on;
-  const b = $('bonusOnlyBtn');
-  b.classList.toggle('off', !on);
-  b.setAttribute('aria-pressed', String(on));
-  if (on) emit(EV.needBonus);   // the filter needs this week's Bonus
-}
-
-export const likedOnly = () => likedOnlyOn;
-
-/** @param {boolean} on */
-function setLikedOnly(on) {
-  likedOnlyOn = on;
-  const b = $('likedOnlyBtn');
-  b.classList.toggle('off', !on);
-  b.setAttribute('aria-pressed', String(on));
-}
-
-/** The minimum-discount dropdown. @param {unknown} value */
+/** The minimum-discount buttons. @param {unknown} value */
 function setMinDiscValue(value) {
   minDiscValue = MIN_DISCS.includes(String(value)) ? String(value) : '0';
-  /** @type {HTMLSelectElement} */ ($('minDiscSel')).value = minDiscValue;
+  document.querySelectorAll('#minDisc .segbtn').forEach(el => {
+    const b = /** @type {HTMLElement} */ (el);
+    const on = b.dataset.disc === minDiscValue;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', String(on));
+  });
 }
 
 /** Current settings as a plain object (what is remembered). @returns {Settings} */
 function currentSettings() {
   return {
     minDisc: minDiscValue,
-    likedOnly: likedOnly(),
-    bonusOnly: bonusOnly(),
     sortBy: $('sortBy').value,
     groupBy: $('groupBy').value,
     ...catsSetting(),
@@ -171,16 +145,13 @@ export function applyCats(s) {
   refilter();
 }
 
-/** "Remove filters": every product type, any discount, not only liked or
- *  Bonus, no search. Grouping and order stay (they hide nothing). */
+/** "Remove filters": every product type, any discount, not only Bonus.
+ *  Grouping and order stay (they hide nothing), and so do the stores and
+ *  "I'm in this store" (where you are, not a filter). */
 function clearFilters() {
   cats = ALL_CATS();
   updateCatChips();
   setMinDiscValue('0');
-  setLikedOnly(false);
-  setBonusOnly(false);
-  $('productSearch').value = '';
-  $('productSearchClear').hidden = true;
   refilter();
 }
 
@@ -195,50 +166,26 @@ export function currentFilter() {
   return {
     cats,
     minDisc: Number(minDiscValue) || 0,
-    likedOnly: likedOnly(),
-    bonusOnly: bonusOnly(),
-    terms: searchTerms($('productSearch').value),
     showHidden: showHiddenEnabled(),
+    storeId: inStoreId(),
   };
 }
 
 export const sortBy = () => String($('sortBy').value);
 export const groupBy = () => String($('groupBy').value);
-export const searchQuery = () => String($('productSearch').value).trim();
 
 /** @param {boolean} visible */
 export function setFilterPanelVisible(visible) {
   $('typesSection').hidden = !visible;
-  $('searchBar').hidden = !visible;
-}
-
-function initSearch() {
-  const input = $('productSearch');
-  const clearBtn = $('productSearchClear');
-  /** @type {any} */
-  let timer = 0;
-  const run = () => {
-    clearTimeout(timer);
-    clearBtn.hidden = !input.value;
-    syncFilterState();
-    // Typing a search leaves the overview selection.
-    emit(EV.refilter, { clearFocus: !!input.value.trim() });
-  };
-  input.addEventListener('input', () => {
-    clearBtn.hidden = !input.value;
-    clearTimeout(timer);
-    timer = setTimeout(run, 150);
-  });
-  input.addEventListener('keydown', (/** @type {KeyboardEvent} */ e) => {
-    if (e.key === 'Escape' && input.value) { e.preventDefault(); input.value = ''; run(); }
-  });
-  clearBtn.addEventListener('click', () => { input.value = ''; run(); input.focus(); });
 }
 
 /** @param {() => Offer[]} getItems the loaded bargains */
 export function initFilters(getItems) {
   items = getItems;
-  makeSheet(/** @type {HTMLDialogElement} */ ($('filterSheet')), $('filterMenuBtn'));
+  // A fold-out panel; opening it folds the other panels (core/dom.makeFoldable). Remembered per browser.
+  const setFolded = makeFoldable($('filterPanel'), $('filterToggle'),
+    folded => storage.set(KEYS.filtersFolded, folded ? '1' : '0'));
+  setFolded(storage.get(KEYS.filtersFolded) !== '0');
 
   // Restore remembered settings.
   const saved = storage.getJSON(KEYS.settings);
@@ -246,23 +193,20 @@ export function initFilters(getItems) {
     setMinDiscValue(saved.minDisc);
     setSelect('sortBy', saved.sortBy);
     setSelect('groupBy', saved.groupBy);
-    setLikedOnly(saved.likedOnly === true);
-    setBonusOnly(saved.bonusOnly === true);
     cats = catsFromSettings(saved);
   } else {
     setMinDiscValue('0');
   }
   updateCatChips();
 
-  initSearch();
   syncFilterState();
   // The labels are translated text: redo them when the language changes.
   on(EV.lang, syncFilterState);
-  $('minDiscSel').addEventListener('change', (/** @type {any} */ e) => { setMinDiscValue(e.target.value); refilter(); });
+  document.querySelectorAll('#minDisc .segbtn').forEach(el => el.addEventListener('click', () => {
+    setMinDiscValue(/** @type {HTMLElement} */ (el).dataset.disc);
+    refilter();
+  }));
   $('clearFilters').addEventListener('click', clearFilters);
-  $('sheetClear').addEventListener('click', clearFilters);
-  $('likedOnlyBtn').addEventListener('click', () => { setLikedOnly(!likedOnly()); refilter(); });
-  $('bonusOnlyBtn').addEventListener('click', () => { setBonusOnly(!bonusOnly()); refilter(); });
   // Order and grouping keep the overview selection.
   for (const id of ['sortBy', 'groupBy']) $(id).addEventListener('change', () => emit(EV.refilter));
   // "All": every product type, including ones that appear later.

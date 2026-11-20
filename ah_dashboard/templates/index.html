@@ -18,22 +18,21 @@
     <div id="specialNotice" role="status" hidden></div>
     {# The "Liked & hidden products" panel moves to the panel row of the view
        that is shown (static/js/ui/view.js), so both views can manage the lists. #}
+    {% include "partials/_store_strip.html" %}
+    {% include "partials/_quickbar.html" %}
     <div id="bargainsPanelRow" class="panelrow">
       {% include "partials/_filters_panel.html" %}
       {% include "partials/_stores_panel.html" %}
       {% include "partials/_lists_panel.html" %}
     </div>
-    {% include "partials/_quickbar.html" %}
-    {% include "partials/_filter_sheet.html" %}
-    {% include "partials/_search_bar.html" %}
 
     <div id="status" class="status" role="status" aria-live="polite"></div>
     <div id="focusBar" class="focusbar" role="status" hidden></div>
-    {# The count line, with Remove filters at its right end: it appears only while something is
-       filtered, and there it moves no control (static/js/bargains/filters.js). #}
+    {# The count line. Remove filters is always there (disabled while nothing is filtered), so
+       nothing moves when a filter goes on (static/js/bargains/filters.js). #}
     <div class="summaryrow">
       <div id="summary" class="summary"></div>
-      <button type="button" id="clearFilters" class="linkbtn" data-i18n-title="clearFiltersTitle" hidden>
+      <button type="button" id="clearFilters" class="linkbtn" data-i18n-title="clearFiltersTitle" disabled>
         <span aria-hidden="true">✕</span> <span data-i18n="clearFilters"></span>
       </button>
     </div>
@@ -43,10 +42,8 @@
   {# View 2: this week's national Bonus #}
   <div id="bonusView" hidden>
     <div id="bonusPanelRow" class="panelrow">
-      {% include "partials/_bonus_filters_panel.html" %}
       {% include "partials/_bonus_groups_panel.html" %}
     </div>
-    {% include "partials/_bonus_filter_sheet.html" %}
     <div id="bonusCats" class="bonuscats" role="group" data-i18n-aria="bonusCategories" hidden></div>
     {# Search over every Bonus category. Hidden until the Bonus is loaded. #}
     <div id="bonusSearchBar" class="searchbar" role="search" hidden>

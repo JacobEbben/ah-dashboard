@@ -1,35 +1,16 @@
 // @ts-check
-// The Bonus view's logic without the DOM: savings, the filters & sorting
-// panel, categories in AH's order, category groups, liked offers and the
+// The Bonus view's logic without the DOM: the order of offers,
+// categories in AH's order, category groups, liked offers and the
 // product -> deal index used by bargain cards. Pure functions.
 import { productKey } from '../core/offers.js';
-import { compareUnit, unitPrice } from '../core/unit.js';
+import { unitPrice } from '../core/unit.js';
 
 /** @typedef {import('../core/offers.js').Offer} Offer */
-/** @typedef {{types: 'all'|string[], minSave: number, sort: string, liked: boolean}} BonusFilters liked: the "Liked" pill */
 /** @typedef {{id: string, name: string, cats: string[]}} CategoryGroup */
 
-export const DEAL_TYPES = ['percent', 'amount', 'multi', 'fixed', 'other'];
-export const SORTS = ['ah', 'save', 'price', 'unit', 'name'];
-export const MIN_SAVES = [0, 25, 40, 50];
+/** The "Liked" pill from storage (ah_bonus_filters; older versions also kept filters there: ignored). @param {any} raw */
+export const parseLikedPill = raw => !!raw && typeof raw === 'object' && raw.liked === true;
 
-/** @returns {BonusFilters} */
-export const defaultFilters = () => ({ types: 'all', minSave: 0, sort: 'ah', liked: false });
-
-/** Validated filters from storage (anything odd falls back to the default). @param {any} raw */
-export function parseFilters(raw) {
-  const f = defaultFilters();
-  if (raw && typeof raw === 'object') {
-    if (Array.isArray(raw.types)) f.types = raw.types.filter((/** @type {any} */ x) => DEAL_TYPES.includes(x));
-    if (MIN_SAVES.includes(Number(raw.minSave))) f.minSave = Number(raw.minSave);
-    if (SORTS.includes(raw.sort)) f.sort = raw.sort;
-    f.liked = raw.liked === true;
-  }
-  return f;
-}
-
-/** The panel's settings are the defaults (the Liked pill is outside the panel). @param {BonusFilters} f */
-export const isDefaultFilters = f => f.types === 'all' && !f.minSave && f.sort === 'ah';
 
 /**
  * Should loadBonus() ask the server again? Yes when nothing is loaded, when
@@ -43,51 +24,22 @@ export function needsFetch(data, force) {
   return !data || force || (Array.isArray(data.errors) && data.errors.length > 0);
 }
 
-/** Saving in whole percent (0 when unknown). @param {Offer} o */
-export function saving(o) {
-  const was = o.priceWas, now = o.priceNow;
-  return was != null && was > 0 && now != null && now < was ? Math.round(((was - now) / was) * 100) : 0;
-}
-
-/** @param {BonusFilters} f @param {string|undefined} type */
-export function typeShown(f, type) {
-  return f.types === 'all' || f.types.includes(type && DEAL_TYPES.includes(type) ? type : 'other');
-}
-
-/** @param {BonusFilters} f @param {Offer} o */
-export function passesFilters(f, o) {
-  return typeShown(f, o.dealType) && saving(o) >= f.minSave;
-}
-
 /** Unit price of an offer: not for group deals (their products differ in size). @param {Offer} o */
 export function offerUnitPrice(o) {
   return o.isGroup ? null : unitPrice(o.priceNow, o.unitSize);
 }
 
 /**
- * Sorted copy: the chosen order; liked offers break ties (and come first in
- * AH's own order); then AH's order.
+ * Sorted copy: liked offers first, otherwise AH's own order.
  * @param {Offer[]} list
- * @param {string} sort
  * @param {(o: Offer) => boolean} isLiked
  */
-export function sortOffers(list, sort, isLiked) {
-  /** @param {Offer} o */
-  const price = o => (o.priceNow != null ? o.priceNow : Infinity);
-  /** @type {Record<string, (a: Offer, b: Offer) => number>} */
-  const CRITERIA = {
-    ah: () => 0,
-    save: (a, b) => saving(b) - saving(a),
-    price: (a, b) => price(a) - price(b),
-    unit: (a, b) => compareUnit(offerUnitPrice(a), offerUnitPrice(b)),
-    name: (a, b) => String(a.title || '').localeCompare(String(b.title || ''), 'nl'),
-  };
-  const crit = CRITERIA[sort] || CRITERIA.ah;
+export function sortOffers(list, isLiked) {
   /** @param {Offer} o */
   const liked = o => (isLiked(o) ? 1 : 0);
   return list
     .map((o, i) => /** @type {[Offer, number]} */ ([o, i]))
-    .sort((a, b) => crit(a[0], b[0]) || (liked(b[0]) - liked(a[0])) || a[1] - b[1])
+    .sort((a, b) => (liked(b[0]) - liked(a[0])) || a[1] - b[1])
     .map(([o]) => o);
 }
 

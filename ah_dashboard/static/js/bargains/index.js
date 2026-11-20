@@ -13,13 +13,12 @@
 import { api, ApiError, errorText } from '../core/api.js';
 import { $ } from '../core/dom.js';
 import { emit, on, EV } from '../core/events.js';
-import { fold } from '../core/format.js';
 import { t } from '../core/i18n.js';
 import { storage } from '../core/storage.js';
 import { isHidden } from '../lists/blacklist.js';
 import { isLiked } from '../lists/likes.js';
-import { buildCategoryFilter, currentFilter, groupBy, initFilters, saveSettings, searchQuery,
-  setFilterPanelVisible, sortBy } from './filters.js';
+import { buildCategoryFilter, currentFilter, groupBy, initFilters, saveSettings, setFilterPanelVisible,
+  sortBy } from './filters.js';
 import { clearFocus, focusItems, renderFocusBar, renderMetrics } from './metrics.js';
 import { filterOffers } from './model.js';
 import { initPresets } from './presets.js';
@@ -61,14 +60,15 @@ function refresh() {
   renderMetrics(allItems);
   renderSpecialNotice(allItems);   // also after a language switch or hiding the product
   if (!allItems.length) return;
-  const common = { groupBy: groupBy(), sortBy: sortBy(), query: searchQuery(), bonusDeals: bonus.deals };
+  const common = { groupBy: groupBy(), sortBy: sortBy(), bonusDeals: bonus.deals };
   // A number clicked in the overview: show exactly those items (hidden ones
   // too, dimmed), ignoring the filters.
   const focused = focusItems(allItems);
   renderFocusBar();
   if (focused) { lastCols = render(focused, { ...common, focused: true }); return; }
-  const result = filterOffers(allItems, currentFilter(), { isHidden, isLiked, fold, bonus });
-  lastCols = render(result.items, { ...common, hiddenCount: result.hiddenCount, bonusPending: result.bonusPending });
+  const result = filterOffers(allItems, currentFilter(), { isHidden });
+  lastCols = render(result.items, { ...common, hiddenCount: result.hiddenCount,
+    otherStores: result.otherStores });
 }
 
 /** Status text for per-store failures ('' when none). @param {any[]} errs */

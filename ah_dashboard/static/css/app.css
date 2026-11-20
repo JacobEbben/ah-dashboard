@@ -48,7 +48,6 @@
   --shadow-sm: inset 0 1px 0 var(--edge), 0 1px 2px rgba(14, 20, 34, .08);
   --shadow-md: inset 0 1px 0 var(--edge), 0 6px 18px -10px rgba(14, 20, 34, .35);
   --ring: 0 0 0 3px rgba(181, 138, 30, .45);
-  --backdrop: rgba(14, 20, 34, .45);   /* behind an open sheet */
   --radius: 8px;               /* plates: cards, panels, header */
   --cs: 1;                     /* card scale: set on the result grids by static/js/density.js */
   --radius-ctl: 5px;           /* buttons, inputs */
@@ -75,7 +74,6 @@
   --shadow-sm: inset 0 1px 0 var(--edge), 0 1px 2px rgba(0, 0, 0, .4);
   --shadow-md: inset 0 1px 0 var(--edge), 0 8px 22px -10px rgba(0, 0, 0, .7);
   --ring: 0 0 0 3px rgba(224, 184, 76, .5);
-  --backdrop: rgba(0, 0, 0, .6);
   color-scheme: dark;
 }
 /* ---- base ----------------------------------------------------------------- */
@@ -137,7 +135,6 @@ button.secondary:hover { background: color-mix(in srgb, var(--accent) 8%, var(--
   padding: 10px 12px; border-radius: var(--radius);
   background: var(--sheen); border: 1px solid var(--line); box-shadow: var(--shadow-md);
 }
-.controls .tokenbox { flex: 1; min-width: 220px; }
 .apptitle {
   flex: 1; min-width: 200px; margin: 0; display: flex; align-items: center; gap: 12px;
   font-family: var(--font-display); font-size: 19px; font-weight: 900; letter-spacing: -.01em; color: var(--ink);
@@ -152,22 +149,16 @@ button.secondary:hover { background: color-mix(in srgb, var(--accent) 8%, var(--
 /* ---- quick switches ------------------------------------------------------------ */
 .quickbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 16px; }
 .presetbar { display: flex; flex-wrap: wrap; gap: 8px; }
-/* The bargains' chip strip (Remove filters, Liked, Bonus | presets). Phones: one
-   sideways-scrolling line, like the Bonus categories, instead of several rows. */
+/* The presets strip. Phones: one sideways-scrolling line, like the Bonus categories, instead of several rows. */
 .chipstrip { margin-top: 12px; }
-/* The count line with Remove filters at its right end (a text button: it appears without moving anything). */
+/* The count line with Remove filters at its right end: always there, disabled while nothing is filtered. */
 .summaryrow { display: flex; align-items: baseline; gap: 4px 16px; }
 .summaryrow .summary { flex: 1 1 auto; min-width: 0; }
 .linkbtn { flex: none; margin-left: auto; padding: 2px 0; background: none; border: 0; box-shadow: none;
   color: var(--accent-ink); font-size: 13px; font-weight: 700; text-decoration: underline;
   text-underline-offset: 3px; text-decoration-thickness: 1px; }
 .linkbtn:hover { text-decoration-thickness: 2px; }
-.linkbtn[hidden] { display: none; }
-/* The minimum-discount dropdown in the strip: chip-sized, filled while it filters. */
-.chipselect { width: auto; flex: none; padding: 7px 32px 7px 12px; font-size: 13px; font-weight: 700;
-  border-radius: var(--radius-tag); box-shadow: var(--shadow-xs); }
-.chipselect.active { border-color: var(--accent); color: var(--accent-ink);
-  background-color: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+.linkbtn:disabled { color: var(--muted); text-decoration: none; opacity: .5; }
 @media (max-width: 700px) {
   .chipstrip, .chipstrip .presetbar { flex-wrap: nowrap; }
   .chipstrip { overflow-x: auto; gap: 8px; padding: 2px 2px 6px; margin-left: -2px; margin-right: -2px;
@@ -214,9 +205,7 @@ button.secondary:hover { background: color-mix(in srgb, var(--accent) 8%, var(--
 .filters { display: flex; flex-wrap: wrap; gap: 20px 32px; align-items: flex-start;
   padding: 18px 18px 20px; border-top: 1px solid var(--line); }
 .filterrow { display: flex; flex-direction: column; gap: 8px; }
-.filterrow.catrow { flex: 1; min-width: 260px; }
 .cat-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.presetrow { flex-basis: 100%; }
 .preset-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .preset-actions select { width: auto; min-width: 200px; }
 .preset-actions input { width: 200px; }
@@ -642,9 +631,6 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
 .admincard label.confirm { display: inline-flex; align-items: center; gap: 4px; margin: 0; font-size: 11px; }
 .mini.danger:hover { color: var(--red); border-color: var(--red); }
 .admin h2.subhead { margin-top: 18px; }
-.admincard form.adduser { display: flex; flex-direction: row; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
-.adduser > div { flex: 1 1 200px; min-width: 0; }
-.adduser button[type=submit] { margin-top: 0; }
 .signin p.smeta { margin: 0 0 8px; }
 /* "Sign in with Google": Google's look (white, grey border, the coloured G) in both themes. */
 .googlebtn { display: inline-flex; align-items: center; gap: 12px; align-self: flex-start; margin: 8px 0 12px;
@@ -666,43 +652,15 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
 .colsctl input[type=range]:focus-visible { outline: none; box-shadow: var(--ring); border-radius: var(--radius-tag); }
 .colsctl output { min-width: 1em; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; text-align: center; }
 
-/* ---- Filters button and sheet (static/js/ui/sheet.js) ------------------------------------ */
-/* The Filters button sits in the panel row, styled like the fold buttons: an icon instead of
-   the chevron, and the number of active filters as a badge. */
+/* ---- Filters buttons (fold-out panels) and segmented choices ------------------------------------ */
+/* The Filters buttons are fold buttons in the panel row, with the number of active filters as a badge. */
 .filterbtn { display: inline-flex; align-items: center; gap: 8px; }
-.filtericon { width: 16px; height: 16px; flex: none; color: var(--accent-ink); }
 .filtercount { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px;
   border-radius: 10px; background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 800; }
 .filtercount[hidden] { display: none; }
 .panelrow .filterbtn:has(.filtercount:not([hidden])) { border-color: var(--accent); color: var(--accent-ink); }
 
-/* The sheet: a modal <dialog>. Wide screens: a centred panel; phones: docked at the bottom. */
-.sheet { width: min(600px, calc(100vw - 32px)); max-width: none; max-height: min(86vh, 780px); padding: 0;
-  border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink);
-  box-shadow: var(--shadow-md); overflow: hidden; }
-.sheet[open] { display: flex; flex-direction: column; }
-.sheet::backdrop { background: var(--backdrop); }
-.sheethead { display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 14px 14px 12px 20px; border-bottom: 1px solid var(--line); }
-.sheethead h2 { margin: 0; font-family: var(--font-display); font-size: 17px; font-weight: 800; }
-.sheetclose { width: 36px; height: 36px; padding: 0; display: grid; place-items: center; font-size: 15px;
-  background: transparent; color: var(--muted); border: 1px solid transparent; border-radius: var(--radius-ctl); box-shadow: none; }
-.sheetclose:hover { background: var(--surface-2); color: var(--ink); }
-.sheetbody { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
-  display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; padding: 18px 20px 22px; }
-.sheetsec { display: grid; gap: 8px; min-width: 0; }
-.sheetsec[hidden] { display: none; }
-.sheetlabel { margin: 0; display: block; font-family: var(--font-display); font-size: 11px; font-weight: 700;
-  letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-.sheetlabelrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.sheetpair { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.sheetpair > div { display: grid; gap: 8px; min-width: 0; }
-.sheetpair select, .sheetsec > select { width: 100%; }
-.sheet .preset-actions select { flex: 1 1 180px; min-width: 0; }
-.sheet .preset-actions input { flex: 1 1 180px; width: auto; min-width: 0; }
-.sheetfoot { display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 12px 20px; border-top: 1px solid var(--line); background: var(--surface-2); }
-.sheetfoot .mini { padding: 9px 14px; border-radius: var(--radius-ctl); }
+.labelrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 
 /* Segmented choice (one of a few values): equal parts in one outlined bar. */
 .segmented { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr);
@@ -718,12 +676,71 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
   .panelrow .foldbtn { flex: 1 1 auto; width: auto; padding: 9px 12px; font-size: 13px; }
   .panelrow .foldbtn .foldcount { display: none; }   /* the summaries: shown inside the open panel instead */
   .panelrow .foldbtn .chev { width: 18px; height: 18px; margin-right: 4px; }
-  /* The sheet docks to the bottom, full width, and leaves room for the phone's home bar. */
-  .sheet { width: 100%; max-height: 88vh; margin: auto 0 0; border-radius: 14px 14px 0 0;
-    border-width: 1px 0 0; }
-  .sheethead { padding-left: 16px; }
-  .sheetbody { padding: 16px; gap: 20px; }
-  .sheetfoot { padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); }
-  .sheetfoot > button { flex: 1; }
 }
-@media (max-width: 380px) { .sheetpair { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---- Store chips, "I'm in this store", minimum discount (bargains) ------------------------------- */
+/* Fixed-height rows that never wrap: nothing below moves when something changes. */
+.chiprow { display: flex; align-items: center; gap: 8px; height: 46px; margin-top: 14px; min-width: 0; }
+.chiprow[hidden] { display: none; }
+.chipscroll { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0;
+  height: 100%; overflow-x: auto; scrollbar-width: thin; -webkit-overflow-scrolling: touch; padding: 0 2px; }
+.chipscroll > * { flex: none; }
+.storechip { display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; font-size: 13px; font-weight: 700;
+  border-radius: var(--radius); background: var(--surface); color: var(--ink); border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm); }
+.storechip:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); color: var(--accent-ink); }
+.storechip .dot { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+.storechipname { max-width: 16ch; overflow: hidden; text-overflow: ellipsis; }
+.chipicon { flex: none; width: 44px; height: 40px; padding: 0; display: grid; place-items: center; font-size: 18px;
+  background: var(--surface); color: var(--accent-ink); border: 1px dashed var(--accent); border-radius: var(--radius);
+  box-shadow: none; }
+.chipicon:hover { background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+/* The banner takes the store row's place at the same height. */
+.instorebar { display: flex; align-items: center; gap: 10px; height: 46px; margin-top: 14px; padding: 0 5px 0 14px;
+  background: var(--ink); color: var(--surface); border-radius: var(--radius); min-width: 0; }
+.instorebar[hidden] { display: none; }
+.instorepin { width: 12px; height: 12px; border-radius: 50%; flex: none; background: var(--or); }
+.instoretext { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.instoremeta { font-size: 12px; opacity: .8; }
+.instoreexit { flex: none; height: 36px; padding: 0 12px; background: var(--surface); color: var(--ink);
+  border: 0; border-radius: var(--radius-ctl); font-size: 13px; }
+.instoreexit:hover { background: var(--surface-2); }
+#results.instore { outline: 3px solid var(--ink); outline-offset: 6px; border-radius: 2px; }
+.mystore .shere { padding: 4px 10px; border-radius: 4px; }
+.mystore .shere[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.discseg { margin-top: 10px; max-width: 460px; height: 46px; }
+.discseg .segbtn { font-size: 14px; }
+.filterbtn .filtercount { margin-left: 8px; }
+
+/* The header's tool line: just its items on wide screens, one line on phones. */
+.toolline { display: contents; }
+
+/* ---- Phones: a compact header and denser controls --------------------------------------------- */
+@media (max-width: 700px) {
+  /* Header: title with language and theme on the first line; view switch, cards per row and Refresh on the second. */
+  .controls { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px 6px;
+    padding: 10px 12px; }
+  .controls .apptitle { grid-column: 1; margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .controls #lang { grid-column: 2; grid-row: 1; }
+  .controls #theme { grid-column: 3; grid-row: 1; }
+  .controls .langsel { padding: 6px 22px 6px 8px; font-size: 13px; background-position: right 5px center; }
+  .controls .authbtn, .controls .userbox { grid-column: 1 / -1; }
+  .controls .viewswitch { display: grid; grid-template-columns: 1fr 1fr; }
+  .controls .toolline { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; }
+  .controls .toolline .viewswitch { flex: 1 1 auto; }
+  .controls .toolline #go { padding: 8px 14px; font-size: 13px; }
+  .controls .authbtn { padding: 7px 12px; font-size: 13px; }
+  .controls .colsctl .colslabel { display: none; }
+  .controls .colsctl input[type=range] { width: 56px; }
+  .controls .apptitle { font-size: 15px; gap: 8px; }
+  .controls .apptitle::before { width: 28px; height: 28px; font-size: 13px; }
+  .controls .toolline .viewbtn { padding: 7px 10px; }
+  .controls .toolline #go, .controls .toolline #forceRefresh { flex: none; }
+  .chiprow, .instorebar { height: 44px; margin-top: 10px; }
+  .discseg { max-width: none; height: 44px; }
+  .storechip { padding: 8px 12px; }
+  .chipstrip { margin-top: 8px; }
+  .summaryrow { margin-top: 4px; font-size: 13px; }
+}
+/* Small phones: no room for the cards-per-row slider (Auto gives 1 column there, at most 2 fit). */
+@media (max-width: 420px) { .controls .colsctl { display: none; } }

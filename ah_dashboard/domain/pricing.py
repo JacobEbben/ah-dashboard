@@ -67,7 +67,7 @@ def bonus_price(was: float | None, labels) -> tuple[float | None, int | None]:
     return None, None
 
 
-# Deal type per AH discount label code (for the Bonus view's filter).
+# Deal type per AH discount label code (in the API output as dealType; the MCP get_bonus tool filters on it).
 _DEAL_TYPES = {
     "DISCOUNT_PERCENTAGE": "percent",
     "DISCOUNT_AMOUNT": "amount",

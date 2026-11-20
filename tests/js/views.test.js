@@ -2,11 +2,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { filterOffers, groupKeyFn, isSpecial, knownCats, mergeAcrossStores, sortGroupKeys, sorter, specialSummary }
+import { activeInStore, filterOffers, groupKeyFn, IN_STORE_MS, inStoreUntil, isSpecial, knownCats, mergeAcrossStores, sortGroupKeys, sorter, specialSummary }
   from '../../ah_dashboard/static/js/bargains/model.js';
-import { categoryGroups, groupOffers, indexDeals, likedOffers, needsFetch, parseFilters, parseGroups, passesFilters,
-  saving, sortOffers } from '../../ah_dashboard/static/js/bonus/model.js';
-import { fold } from '../../ah_dashboard/static/js/core/format.js';
+import { categoryGroups, groupOffers, indexDeals, likedOffers, needsFetch, parseGroups, parseLikedPill,
+  sortOffers } from '../../ah_dashboard/static/js/bonus/model.js';
 import { mergePrefs } from '../../ah_dashboard/static/js/sync/merge.js';
 
 const bargain = (id, title, extra = {}) => ({
@@ -15,42 +14,51 @@ const bargain = (id, title, extra = {}) => ({
   markdownType: null, ...extra,
 });
 const ALL = { all: true, selected: new Set() };
-const noFilter = { cats: ALL, minDisc: 0, bonusOnly: false, terms: [], showHidden: false };
-const deps = (over = {}) => ({ isHidden: () => false, fold, bonus: { status: 'none', deals: new Map() }, ...over });
+const noFilter = { cats: ALL, minDisc: 0, showHidden: false };
+const deps = (over = {}) => ({ isHidden: () => false, ...over });
 
 // ---- bargains ------------------------------------------------------------------------------
-test('bargain filters: types, discount, search, hidden', () => {
+test("I'm in this store: only that store, and how many match elsewhere", () => {
+  const items = [bargain(1, 'Kip'), bargain(2, 'Brood', { storeId: 2, storeName: 'Werk' }),
+    bargain(3, 'Melk', { storeId: 2, storeName: 'Werk', discount: 10 })];
+  const r = filterOffers(items, { ...noFilter, storeId: 1 }, deps());
+  assert.deepEqual(r.items.map(o => o.id), [1]);
+  assert.equal(r.otherStores, 2);
+  // Other filters apply first: the count is only what would show elsewhere.
+  assert.equal(filterOffers(items, { ...noFilter, storeId: 1, minDisc: 30 }, deps()).otherStores, 1);
+  assert.equal(filterOffers(items, noFilter, deps()).otherStores, 0);
+});
+
+test("I'm in this store: lasts 2 hours, never past midnight, only for followed stores", () => {
+  const noon = new Date(2026, 10, 20, 12, 0);
+  assert.equal(inStoreUntil(noon), noon.getTime() + IN_STORE_MS);
+  const late = new Date(2026, 10, 20, 23, 0);
+  assert.equal(inStoreUntil(late), new Date(2026, 10, 21, 0, 0).getTime());
+  const now = noon.getTime();
+  assert.equal(activeInStore({ id: 5, until: now + 1000 }, now, [5, 6]), 5);
+  assert.equal(activeInStore({ id: 5, until: now - 1 }, now, [5]), null);           // expired
+  assert.equal(activeInStore({ id: 7, until: now + 1000 }, now, [5]), null);        // not followed any more
+  assert.equal(activeInStore({ id: 5, until: now + IN_STORE_MS + 1 }, now, [5]), null);  // too far ahead: tampered
+  assert.equal(activeInStore('5', now, [5]), null);
+  assert.equal(activeInStore(null, now, [5]), null);
+});
+
+test('bargain filters: types, discount, hidden', () => {
   const items = [bargain(1, 'Kipfilet'), bargain(2, 'Brood', { category: 'Brood', discount: 25 }), bargain(3, 'Crème fraîche')];
   const ids = r => r.items.map(o => o.id);
   assert.deepEqual(ids(filterOffers(items, { ...noFilter, cats: { all: false, selected: new Set(['Brood']) } }, deps())), [2]);
   assert.deepEqual(ids(filterOffers(items, { ...noFilter, minDisc: 30 }, deps())), [1, 3]);
-  assert.deepEqual(ids(filterOffers(items, { ...noFilter, terms: ['creme'] }, deps())), [3]);
   const hidden = filterOffers(items, noFilter, deps({ isHidden: o => o.id === 1 }));
   assert.deepEqual(ids(hidden), [2, 3]);
   assert.equal(hidden.hiddenCount, 1);
   assert.deepEqual(ids(filterOffers(items, { ...noFilter, showHidden: true }, deps({ isHidden: o => o.id === 1 }))), [1, 2, 3]);
 });
 
-test('"Liked" keeps only liked bargains; off (or older presets without it) keeps all', () => {
+test('liking never filters: it only orders ties (liked first)', () => {
   const items = [bargain(1, 'A'), bargain(2, 'B'), bargain(3, 'C')];
-  const isLiked = o => o.id !== 2;
-  assert.deepEqual(filterOffers(items, { ...noFilter, likedOnly: true }, deps({ isLiked })).items.map(o => o.id), [1, 3]);
-  assert.equal(filterOffers(items, noFilter, deps({ isLiked })).items.length, 3);
-  const hiddenLiked = filterOffers(items, { ...noFilter, likedOnly: true }, deps({ isLiked, isHidden: o => o.id === 3 }));
-  assert.deepEqual(hiddenLiked.items.map(o => o.id), [1]);   // hidden stays hidden
-});
-
-test('"Also in Bonus" filters only once the Bonus is ready, and says why not', () => {
-  const items = [bargain(1, 'A'), bargain(2, 'B')];
-  const f = { ...noFilter, bonusOnly: true };
-  const loading = filterOffers(items, f, deps({ bonus: { status: 'loading', deals: new Map() } }));
-  assert.equal(loading.items.length, 2);
-  assert.equal(loading.bonusPending, 'loading');
-  const failed = filterOffers(items, f, deps({ bonus: { status: 'failed', deals: new Map() } }));
-  assert.equal(failed.bonusPending, 'failed');
-  const ready = filterOffers(items, f, deps({ bonus: { status: 'ready', deals: new Map([[2, '1+1']]) } }));
-  assert.deepEqual(ready.items.map(o => o.id), [2]);
-  assert.equal(ready.bonusPending, null);
+  // Older saved settings may still say likedOnly or bonusOnly: both are ignored.
+  assert.equal(filterOffers(items, { ...noFilter, likedOnly: true, bonusOnly: true }, deps()).items.length, 3);
+  assert.deepEqual(items.slice().sort(sorter('disc', o => o.id === 3)).map(o => o.id)[0], 3);
 });
 
 test('the same product at the same discount is one card across stores', () => {
@@ -101,23 +109,18 @@ const offer = (id, title, extra = {}) => ({
   productCount: null, isGroup: false, products: [], ...extra,
 });
 
-test('Bonus savings and filters', () => {
-  assert.equal(saving(offer(1, 'a')), 25);
-  assert.equal(saving(offer(1, 'a', { priceWas: null })), 0);
-  const f = parseFilters({ types: ['multi', 'bogus'], minSave: 40, sort: 'price' });
-  assert.deepEqual(f, { types: ['multi'], minSave: 40, sort: 'price', liked: false });
-  assert.deepEqual(parseFilters({ minSave: 33, sort: 'nope' }), { types: 'all', minSave: 0, sort: 'ah', liked: false });
-  assert.equal(parseFilters({ liked: true }).liked, true);
-  assert.equal(parseFilters({ liked: 'yes' }).liked, false);
-  assert.equal(passesFilters(f, offer(1, 'a', { dealType: 'multi', priceNow: 1 })), true);
-  assert.equal(passesFilters(f, offer(1, 'a', { dealType: 'percent', priceNow: 1 })), false);
+test('the stored Liked pill', () => {
+  assert.equal(parseLikedPill({ liked: true }), true);
+  assert.equal(parseLikedPill({ liked: 'yes' }), false);
+  // Older versions stored filters there too: ignored.
+  assert.equal(parseLikedPill({ types: ['multi'], minSave: 40, sort: 'price' }), false);
+  assert.equal(parseLikedPill(null), false);
 });
 
-test('Bonus order: chosen criterion, then liked, then AH order', () => {
-  const list = [offer(1, 'b', { priceNow: 2 }), offer(2, 'a', { priceNow: 1 }), offer(3, 'c', { priceNow: 2 })];
-  assert.deepEqual(sortOffers(list, 'price', o => o.id === 3).map(o => o.id), [2, 3, 1]);
-  assert.deepEqual(sortOffers(list, 'ah', o => o.id === 3).map(o => o.id), [3, 1, 2]);
-  assert.deepEqual(sortOffers(list, 'name', () => false).map(o => o.id), [2, 1, 3]);
+test('Bonus order: liked first, otherwise AH order', () => {
+  const list = [offer(1, 'b'), offer(2, 'a'), offer(3, 'c')];
+  assert.deepEqual(sortOffers(list, o => o.id === 3).map(o => o.id), [3, 1, 2]);
+  assert.deepEqual(sortOffers(list, () => false).map(o => o.id), [1, 2, 3]);
 });
 
 test('categories in AH order; groups merge their categories, each offer once', () => {

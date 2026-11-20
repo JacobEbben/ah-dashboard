@@ -1,6 +1,51 @@
-{# The bargains' Filters: a button in the panel row (with the number of active filters) that opens
-   a sheet: a dialog, at the bottom of the screen on phones. Changes apply at once; the results
-   update behind it (static/js/bargains/filters.js, presets.js; ui/sheet.js). #}
-<button type="button" id="filterMenuBtn" class="foldbtn filterbtn" aria-haspopup="dialog" aria-expanded="false" aria-controls="filterSheet">
-  {% include "partials/_filter_icon.html" %}<span data-i18n="filters"></span><span id="filterCount" class="filtercount" hidden></span>
-</button>
+{# The bargains' Filters: a fold-out panel under the panel row (static/js/bargains/filters.js,
+   presets.js). The button shows how many of its filters are on. Changes apply at once. #}
+<div id="filterPanel" class="filterpanel collapsed">
+  <button type="button" id="filterToggle" class="foldbtn filterbtn" aria-expanded="false" aria-controls="filterBody">
+    <span class="chev">▾</span> <span data-i18n="filters"></span><span id="filterCount" class="filtercount" hidden></span>
+  </button>
+  <div id="filterBody" class="filters">
+    <div class="filterrow">
+      <label for="groupBy" data-i18n="groupBy"></label>
+      <select id="groupBy">
+        <option value="cat" selected data-i18n="productType"></option>
+        <option value="disc" data-i18n="discountSize"></option>
+        <option value="store" data-i18n="store"></option>
+        <option value="none" data-i18n="groupNone"></option>
+      </select>
+    </div>
+    <div class="filterrow">
+      <label for="sortBy" data-i18n="orderBy"></label>
+      <select id="sortBy">
+        <option value="disc" selected data-i18n="discHighLow"></option>
+        <option value="store" data-i18n="store"></option>
+        <option value="qty" data-i18n="qtyHighLow"></option>
+        <option value="unit" data-i18n="unitLowHigh"></option>
+      </select>
+    </div>
+    {# Hidden until bargains are loaded: the chips are the types present in them. #}
+    <div id="typesSection" class="filterrow fullrow" hidden>
+      <div class="labelrow">
+        <label data-i18n="productTypes"></label>
+        <div class="cat-actions">
+          <button type="button" id="catAll" class="mini" data-i18n="all" data-i18n-title="allCatsTitle" aria-pressed="true"></button>
+          <button type="button" id="catNone" class="mini" data-i18n="none"></button>
+        </div>
+      </div>
+      <div id="cats" class="cats"></div>
+    </div>
+    <div class="filterrow fullrow">
+      <label for="presetSel" data-i18n="presets"></label>
+      <div class="preset-actions">
+        <select id="presetSel"><option value=""></option></select>
+        <button type="button" id="presetUpdate" class="mini" data-i18n="updatePreset" data-i18n-title="updatePresetTitle" disabled></button>
+        <button type="button" id="presetDel" class="mini" data-i18n="delete" data-i18n-title="deleteTitle" disabled></button>
+      </div>
+      <div class="preset-actions">
+        <input id="presetName" type="text" data-i18n-ph="presetNamePh" maxlength="40" autocomplete="off"
+               data-i18n-aria="presetNamePh">
+        <button type="button" id="presetSave" class="mini" data-i18n="save" data-i18n-title="saveTitle"></button>
+      </div>
+    </div>
+  </div>
+</div>

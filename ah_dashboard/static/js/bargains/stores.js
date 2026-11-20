@@ -1,14 +1,16 @@
 // @ts-check
-// "My stores": the saved store list (with a colour per store), the Stores
-// panel, and searching AH stores by postal code. This module owns the list;
-// changes are announced with EV.stores ({reload: true} when a store was added),
-// and the bargains controller reloads or re-renders.
+// "My stores": the saved store list (with a colour per store), the store chips
+// and "I'm in this store", the Stores panel, and searching AH stores by postal
+// code. This module owns the list; changes are announced with EV.stores
+// ({reload: true} when a store was added), and the bargains controller reloads
+// or re-renders. Entering or leaving "I'm in this store" emits EV.refilter.
 import { api, errorText } from '../core/api.js';
 import { config } from '../core/config.js';
 import { $, html, makeFoldable } from '../core/dom.js';
 import { emit, on, EV } from '../core/events.js';
 import { t } from '../core/i18n.js';
 import { KEYS, storage } from '../core/storage.js';
+import { activeInStore, inStoreUntil } from './model.js';
 
 /** @typedef {{id: number, name: string, color: string}} MyStore */
 
@@ -91,6 +93,7 @@ function uniqueName(base, id) {
 function changed(reload) {
   saveStores();
   renderMyStores();
+  renderStoreRow();
   emit(EV.stores, { reload });
 }
 
@@ -119,8 +122,56 @@ function addStore(st) {
   changed(true);
 }
 
+// ---- "I'm in this store" -----------------------------------------------------------
+// Per browser (ah_instore, not synced: where this phone is). It survives a
+// reload while shopping, but ends after 2 hours or at midnight, so the next
+// visit at home shows every store again (model.inStoreUntil / activeInStore).
+
+/** The store the visitor is in now, or null. */
+export function inStoreId() {
+  return activeInStore(storage.getJSON(KEYS.inStore), Date.now(), stores.map(s => s.id));
+}
+
+/** @param {number|null} id */
+function setInStore(id) {
+  if (id === null) storage.remove(KEYS.inStore);
+  else storage.setJSON(KEYS.inStore, { id, until: inStoreUntil(new Date()) });
+  renderStoreRow();
+  renderMyStores();
+  emit(EV.refilter, { clearFocus: true });
+}
+
+/** @param {number} id */
+const toggleInStore = id => setInStore(inStoreId() === id ? null : id);
+
+/** The chip row, or (in a store) the banner of the same height in its place. */
+function renderStoreRow() {
+  const here = inStoreId();
+  const store = stores.find(s => s.id === here);
+  $('storeRow').hidden = !!store;
+  $('inStoreBar').hidden = !store;
+  $('results').classList.toggle('instore', !!store);
+  if (store) {
+    $('inStoreName').textContent = t('inStoreOnly', store.name);
+    $('inStoreHidden').textContent = stores.length > 1 ? '· ' + t('inStoreHidden', stores.length - 1) : '';
+  }
+  const box = $('storeChips');
+  box.innerHTML = '';
+  for (const s of stores) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'storechip';
+    b.setAttribute('aria-pressed', String(s.id === here));
+    b.title = t('imHereTitle', s.name);
+    b.innerHTML = html`<span class="dot ${colorClass(s.color)}"></span><span class="storechipname">${s.name}</span>`;
+    b.addEventListener('click', () => toggleInStore(s.id));
+    box.appendChild(b);
+  }
+}
+
 // ---- rendering ------------------------------------------------------------
 function renderMyStores() {
+  const here = inStoreId();
   $('storeCount').textContent = stores.length
     ? '· ' + stores.map(s => s.name).join(', ')
     : t('storeCountNone');
@@ -131,11 +182,12 @@ function renderMyStores() {
     const row = document.createElement('div');
     row.className = 'mystore';
     row.title = t('storeNum', s.id);
-    row.innerHTML = html`<span class="dot ${colorClass(s.color)}"></span><input type="text" maxlength="${MAX_NAME}" value="${s.name}" aria-label="${t('nameForStore', s.id)}"><span class="smeta">#${s.id}</span><button type="button" class="mini sdel" title="${t('removeStore')}">✕</button>`;
+    row.innerHTML = html`<span class="dot ${colorClass(s.color)}"></span><input type="text" maxlength="${MAX_NAME}" value="${s.name}" aria-label="${t('nameForStore', s.id)}"><span class="smeta">#${s.id}</span><button type="button" class="mini shere" aria-pressed="${String(s.id === here)}" title="${t('imHereTitle', s.name)}">${t('imHere')}</button><button type="button" class="mini sdel" title="${t('removeStore')}">✕</button>`;
     const input = /** @type {HTMLInputElement} */ (row.querySelector('input'));
     input.addEventListener('change', () => renameStore(s.id, input.value));
     input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
     row.querySelector('.sdel')?.addEventListener('click', () => removeStore(s.id));
+    row.querySelector('.shere')?.addEventListener('click', () => toggleInStore(s.id));
     box.appendChild(row);
   }
   renderStoreResults();
@@ -201,18 +253,32 @@ export function openStoresPanel() { setStoresFolded(false); }
 
 export function initStores() {
   stores = loadStores();
-
   setStoresFolded = makeFoldable($('storePanel'), $('storeToggle'),
     folded => storage.set(KEYS.storesFolded, folded ? '1' : '0'));
+  // ＋ after the store chips: open the Stores panel at the postal-code search.
+  $('storeManageBtn').addEventListener('click', () => {
+    openStoresPanel();
+    $('storeQuery').focus({ preventScroll: true });
+    $('storePanel').scrollIntoView({ block: 'nearest' });
+  });
+  $('inStoreExit').addEventListener('click', () => setInStore(null));
+  // Back to the tab after a while: "I'm in this store" may have ended.
+  let lastHere = inStoreId();
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    const here = inStoreId();
+    if (here !== lastHere) { lastHere = here; renderStoreRow(); renderMyStores(); emit(EV.refilter); }
+  });
+  on(EV.refilter, () => { lastHere = inStoreId(); });
 
   $('storeSearchBtn').addEventListener('click', searchStores);
   $('storeClearBtn').addEventListener('click', clearSearch);
   $('storeQuery').addEventListener('input', updateClearButton);
   $('storeQuery').addEventListener('keydown', (/** @type {KeyboardEvent} */ e) => { if (e.key === 'Enter') searchStores(); });
-  on(EV.lang, renderMyStores);
+  on(EV.lang, () => { renderMyStores(); renderStoreRow(); });
 
   renderMyStores();
-  const folded = storage.get(KEYS.storesFolded);
+  renderStoreRow();
   // Open when there are no stores yet (first visit), else as the user left it.
-  setStoresFolded(stores.length > 0 && folded !== '0');
+  setStoresFolded(stores.length > 0 && storage.get(KEYS.storesFolded) !== '0');
 }

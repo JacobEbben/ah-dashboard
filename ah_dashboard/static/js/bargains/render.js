@@ -18,11 +18,10 @@ import { storeByName, storeClass, storeIndex } from './stores.js';
  * @typedef {object} RenderOptions
  * @property {string} groupBy
  * @property {string} sortBy
- * @property {string} query the search text (for the "no match" summary)
  * @property {Map<number, string>} bonusDeals product id -> Bonus deal text
  * @property {number} [hiddenCount]
  * @property {boolean} [focused] showing an overview selection
- * @property {'loading'|'failed'|null} [bonusPending]
+ * @property {number} [otherStores] "I'm in this store": matching bargains at the other stores
  */
 
 export function clearResults() {
@@ -43,14 +42,14 @@ export function render(offers, o) {
   // "… 3 stores · 2 hidden." : notes go before the sentence's full stop.
   const notes = [
     ...(o.hiddenCount ? [t('hiddenCount', o.hiddenCount)] : []),
-    ...(o.bonusPending ? [t(o.bonusPending === 'failed' ? 'bonusFilterFailed' : 'bonusFilterPending')] : []),
+    ...(o.otherStores ? [t('otherStores', o.otherStores)] : []),
   ];
   /** @param {string} text */
   const withNotes = text => (notes.length ? text.replace(/\.$/, '') + ' · ' + notes.join(' · ') + '.' : text);
   resultsEl.innerHTML = '';
   const cols = currentCols();
   if (!offers.length) {
-    summaryEl.textContent = o.focused ? t('focusNone') : withNotes(o.query ? t('noSearchMatch', o.query) : t('noMatch'));
+    summaryEl.textContent = o.focused ? t('focusNone') : withNotes(t('noMatch'));
     return cols;
   }
 

@@ -3,11 +3,10 @@
 // the visitor's category groups) at a time. A row of pills selects it
 // (remembered). The "Liked" pill in front is a filter: while on, the view
 // shows every liked product on Bonus this week, one section per category
-// (filters.liked, saved with the panel's filters). The search field searches
+// (likedPill, saved as ah_bonus_filters {liked}, synced). The search field searches
 // every category at once (only liked ones while the Liked filter is on). Cards have the same
-// like and hide buttons as the bargains (shared lists). The "Filters &
-// sorting" panel narrows and orders the offers (ah_bonus_filters, synced). The
-// notice bar says when liked products are on Bonus this week.
+// like and hide buttons as the bargains (shared lists). Offers are in AH's
+// order, liked ones first. The notice bar says when liked products are on Bonus this week.
 //
 // Events: emits EV.bonusStatus (bargain cards' Bonus tag, "Bonus"
 // filter); listens to EV.needBonus, EV.lists, EV.cols, EV.lang.
@@ -24,12 +23,11 @@ import { cardActions, gridCols, linkedThumb, metaLine, placeSections, section, w
 import { makeDropDraggable } from '../ui/dragdrop.js';
 import { onRenameGesture, startRename } from '../ui/rename.js';
 import { makeReorderable } from '../ui/reorder.js';
-import { makeSheet } from '../ui/sheet.js';
 import { currentView, setView } from '../ui/view.js';
 import { GROUP_NAME_MAX, addToGroup, allGroups, announce, createGroup, groupByKey, groupKey, groupedCats,
   initGroups, renameGroup, renderGroupsPanel, reorderGroups } from './groups.js';
-import { DEAL_TYPES, SORTS, categoryGroups, defaultFilters, groupOffers, indexDeals, isDefaultFilters,
-  likedOffers, needsFetch, offerUnitPrice, parseFilters, passesFilters, sortOffers, typeShown } from './model.js';
+import { categoryGroups, groupOffers, indexDeals, likedOffers, needsFetch, offerUnitPrice, parseLikedPill,
+  sortOffers } from './model.js';
 
 /** @typedef {import('../core/offers.js').Offer} Offer */
 /** @typedef {{period: {start: string|null, end: string|null}, categories: string[], items: Offer[],
@@ -42,69 +40,15 @@ let loading = null;
 let lastCols = 0;
 /** @type {string|undefined} shown category or a group key */
 let selected;
-let filters = defaultFilters();
+/** The "Liked" pill: show every liked product on Bonus this week. */
+let likedPill = false;
 
-// ---- filters & sorting --------------------------------------------------------------
+// ---- the Liked pill (remembered) ------------------------------------------------------
 function saveFilters() {
-  if (isDefaultFilters(filters) && !filters.liked) storage.remove(KEYS.bonusFilters);
-  else storage.setJSON(KEYS.bonusFilters, filters);
+  if (likedPill) storage.setJSON(KEYS.bonusFilters, { liked: true });
+  else storage.remove(KEYS.bonusFilters);
 }
 
-/** Sync the panel's controls and its summary with `filters`. */
-function syncFilterControls() {
-  document.querySelectorAll('#bonusMinSave .segbtn').forEach(el => {
-    const b = /** @type {HTMLElement} */ (el);
-    const on = b.dataset.save === String(filters.minSave);
-    b.classList.toggle('active', on);
-    b.setAttribute('aria-pressed', String(on));
-  });
-  $('bonusSort').value = filters.sort;
-  document.querySelectorAll('#bonusTypes .cat').forEach(el => {
-    const b = /** @type {HTMLElement} */ (el);
-    const on = typeShown(filters, b.dataset.type);
-    b.classList.toggle('off', !on);
-    b.setAttribute('aria-pressed', String(on));
-  });
-  /** @type {HTMLButtonElement} */ ($('bonusFiltersReset')).disabled = isDefaultFilters(filters);
-  // The count on the Filters button: the settings that hide offers, plus a non-default order.
-  const n = (filters.minSave ? 1 : 0) + (filters.types !== 'all' ? 1 : 0) + (filters.sort !== 'ah' ? 1 : 0);
-  const count = $('bonusFilterCount');
-  count.hidden = n === 0;
-  count.textContent = String(n);
-  $('bonusFilterBtn').setAttribute('aria-label',
-    n ? `${t('bonusFiltersTitle')}, ${t('filtersActive', n)}` : t('bonusFiltersTitle'));
-}
-
-function filtersChanged() {
-  saveFilters();
-  syncFilterControls();
-  renderBonus();
-}
-
-/** @param {string} type */
-function toggleType(type) {
-  const sel = new Set(filters.types === 'all' ? DEAL_TYPES : filters.types);
-  if (sel.has(type)) sel.delete(type); else sel.add(type);
-  filters.types = sel.size === DEAL_TYPES.length ? 'all' : DEAL_TYPES.filter(x => sel.has(x));
-  filtersChanged();
-}
-
-function initFilterPanel() {
-  makeSheet(/** @type {HTMLDialogElement} */ ($('bonusFilterSheet')), $('bonusFilterBtn'));
-  filters = parseFilters(storage.getJSON(KEYS.bonusFilters, null));
-  document.querySelectorAll('#bonusMinSave .segbtn').forEach(el => {
-    const b = /** @type {HTMLElement} */ (el);
-    b.addEventListener('click', () => { filters.minSave = Number(b.dataset.save) || 0; filtersChanged(); });
-  });
-  $('bonusSort').addEventListener('change', (/** @type {any} */ e) => { filters.sort = SORTS.includes(e.target.value) ? e.target.value : 'ah'; filtersChanged(); });
-  document.querySelectorAll('#bonusTypes .cat').forEach(el => {
-    const b = /** @type {HTMLElement} */ (el);
-    b.addEventListener('click', () => toggleType(b.dataset.type || 'other'));
-  });
-  // Reset is the panel's: it leaves the Liked pill as it is.
-  $('bonusFiltersReset').addEventListener('click', () => { filters = { ...defaultFilters(), liked: filters.liked }; filtersChanged(); });
-  syncFilterControls();
-}
 
 // ---- "liked products on Bonus" notice ---------------------------------------------------
 function renderNotice() {
@@ -174,10 +118,10 @@ function card(o) {
 /** @param {string|undefined} name */
 const catLabel = name => (groupByKey(name) || { name }).name || '';
 
-/** The "Liked" filter on or off (remembered with the panel's filters). @param {boolean} on */
+/** The "Liked" pill on or off (remembered). @param {boolean} on */
 function setLikedFilter(on) {
-  if (filters.liked === on) return;
-  filters.liked = on;
+  if (likedPill === on) return;
+  likedPill = on;
   if (on && !$('likedNotice').hidden) closeNotice();   // seen them
   saveFilters();
   renderBonus();
@@ -202,12 +146,12 @@ function renderCategoryBar(pills, active, likedCount) {
   const liked = document.createElement('button');
   liked.type = 'button';
   liked.id = 'bonusLikedBtn';
-  liked.className = 'presetbtn catpill likedpill' + (filters.liked ? ' active' : '');
+  liked.className = 'presetbtn catpill likedpill' + (likedPill ? ' active' : '');
   liked.dataset.kind = 'liked';
   liked.title = t('bonusLikedTitle');
-  liked.setAttribute('aria-pressed', String(filters.liked));
-  liked.innerHTML = html`${t('likedOnlyPill')}<span class="catcount">${likedCount}</span>`;
-  liked.addEventListener('click', () => setLikedFilter(!filters.liked));
+  liked.setAttribute('aria-pressed', String(likedPill));
+  liked.innerHTML = html`${t('likedPill')}<span class="catcount">${likedCount}</span>`;
+  liked.addEventListener('click', () => setLikedFilter(!likedPill));
   const sep = document.createElement('span');
   sep.className = 'quicksep';
   sep.setAttribute('aria-hidden', 'true');
@@ -247,10 +191,10 @@ function dropCategory(item, target) {
 function selectCategory(name) {
   const input = $('bonusSearch');
   const searching = !!input.value.trim();
-  if (name === selected && !searching && !filters.liked) return;
+  if (name === selected && !searching && !likedPill) return;
   selected = name;
   storage.set(KEYS.bonusCat, name);   // a category or a group key
-  if (filters.liked) { filters.liked = false; saveFilters(); }
+  if (likedPill) { likedPill = false; saveFilters(); }
   if (searching) { input.value = ''; $('bonusSearchClear').hidden = true; }
   renderBonus();
   // Keep the category row in view (e.g. after scrolling down a long category);
@@ -271,7 +215,6 @@ const showSections = (parts, n) =>
 
 // ---- the view -------------------------------------------------------------------------------
 function renderBonus() {
-  syncFilterControls();   // the Filters button's label (also after a language switch)
   renderNotice();
   const results = $('bonusResults');
   const summary = $('bonusSummary');
@@ -289,18 +232,15 @@ function renderBonus() {
   const visible = showHiddenEnabled() ? all : all.filter(o => !isHidden(o));
   /** @param {string} text */
   const withHidden = text => (hiddenCount ? text.replace(/\.$/, '') + ' · ' + t('hiddenCount', hiddenCount) + '.' : text);
-  const items = visible.filter(o => passesFilters(filters, o));
-  if (!items.length) {
-    summary.textContent = withHidden(visible.length ? t('bonusNoFilterMatch') : t('bonusNone'));
-    return;
-  }
+  const items = visible;
+  if (!items.length) { summary.textContent = withHidden(t('bonusNone')); return; }
 
   const categories = Array.isArray(data.categories) ? data.categories : [];
   const byCat = categoryGroups(items, categories);   // category -> its offers
   const liked = likedOffers(items, isLiked);
   const grouped = groupedCats();
   /** @param {Offer[]} list */
-  const sorted = list => sortOffers(list, filters.sort, isLiked);
+  const sorted = list => sortOffers(list, isLiked);
   /** @type {{key: string, kind: 'group'|'cat', label: string, count: number}[]} */
   const pills = [
     ...allGroups().map(g => ({ key: groupKey(g), kind: /** @type {const} */ ('group'), label: g.name, count: groupOffers(g, byCat).length })),
@@ -316,7 +256,7 @@ function renderBonus() {
   const terms = searchTerms(query);
   if (terms.length) {
     renderCategoryBar(pills, null, liked.length);
-    const matches = (filters.liked ? liked : items).filter(o => {
+    const matches = (likedPill ? liked : items).filter(o => {
       const text = fold([o.title, o.brand].filter(Boolean).join(' '));
       return terms.every(w => text.includes(w));
     });
@@ -326,7 +266,7 @@ function renderBonus() {
   }
 
   // The Liked filter: every liked product on Bonus, one section per category.
-  if (filters.liked) {
+  if (likedPill) {
     renderCategoryBar(pills, null, liked.length);
     summary.textContent = withHidden(liked.length ? t('bonusLikedSummary', liked.length) : t('bonusLikedNone'));
     showSections([...categoryGroups(liked, categories)].map(([name, list]) => [name, sorted(list)]), n);
@@ -421,7 +361,7 @@ function initSearch() {
 
 export function initBonus() {
   initSearch();
-  initFilterPanel();
+  likedPill = parseLikedPill(storage.getJSON(KEYS.bonusFilters, null));
   initGroups(() => renderBonus());
   // Double-click (or F2 on) a group pill: rename it in place.
   onRenameGesture($('bonusCats'), '.catpill[data-kind="group"]', pill => {
