@@ -76,3 +76,13 @@ def test_no_inline_styles_or_scripts_in_templates_and_js():
             attrs, body = m.groups()
             assert "src=" in attrs or "application/json" in attrs or not body.strip(), \
                 f"inline script in {path.name}"
+
+
+def test_favicon_is_linked_and_served(client):
+    page = client.get("/").get_data(as_text=True)
+    for href in ("icons/favicon.svg", "icons/favicon-32.png", "icons/apple-touch-icon.png"):
+        assert href in page, href
+        assert client.get("/static/" + href).status_code == 200, href
+    ico = client.get("/favicon.ico")
+    assert ico.status_code == 200 and ico.mimetype == "image/png"
+    assert ico.data.startswith(b"\x89PNG")

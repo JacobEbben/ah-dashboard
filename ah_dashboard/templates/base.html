@@ -6,6 +6,10 @@
   <title>{% block title %}AH Dashboard{% endblock %}</title>
   <script src="{{ url_for('static', filename='js/theme-init.js') }}"></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  {# The "%" mark of the header. SVG for current browsers, PNG for older ones; iOS home screens use the square 180px one. #}
+  <link rel="icon" href="{{ url_for('static', filename='icons/favicon.svg') }}" type="image/svg+xml">
+  <link rel="icon" href="{{ url_for('static', filename='icons/favicon-32.png') }}" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
   {% block head %}{% endblock %}
 </head>
 <body>

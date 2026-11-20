@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- AH Dashboard: the "%" mark from the header (static/css/app.css .apptitle::before), drawn as shapes. -->
+  <rect width="64" height="64" rx="12" fill="#1e3fae"/>
+  <g fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round">
+    <circle cx="21" cy="21" r="7"/>
+    <circle cx="43" cy="43" r="7"/>
+    <path d="M45 16 19 48"/>
+  </g>
+</svg>

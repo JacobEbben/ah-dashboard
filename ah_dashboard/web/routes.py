@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from flask import redirect, render_template, request, url_for
+from flask import current_app, redirect, render_template, request, send_from_directory, url_for
 from flask.typing import ResponseReturnValue
 
 from ..auth import access, admin, csrf
@@ -33,6 +33,14 @@ def index():
     return render_template("index.html", client_config=client_config,
                            user=user, csrf=client_config["csrf"], admin_link=admin_link,
                            signin=s.settings.auth.google_enabled)
+
+
+@bp.get("/favicon.ico")
+def favicon() -> ResponseReturnValue:
+    """Browsers and crawlers ask for /favicon.ico on their own (also for pages
+    without our <link rel="icon">, like JSON): the 32px PNG, which they all accept."""
+    assert current_app.static_folder
+    return send_from_directory(current_app.static_folder, "icons/favicon-32.png", mimetype="image/png")
 
 
 @bp.get("/healthz")
