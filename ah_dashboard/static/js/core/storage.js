@@ -13,12 +13,12 @@ export const KEYS = {
   view: 'ah_view',                // 'bargains' | 'bonus'
   bonusCat: 'ah_bonus_cat',       // selected Bonus category
   bonusFilters: 'ah_bonus_filters',  // Bonus view: {types, minSave, sort}
-  bonusFiltersFolded: 'ah_bonus_filters_folded',
+  bonusFiltersFolded: 'ah_bonus_filters_folded',   // unused since the filters became a sheet; kept so the name stays reserved
   bonusGroups: 'ah_bonus_groups',  // Bonus category groups [{id, name, cats}]
   bonusGroupsFolded: 'ah_bonus_groups_folded',
   bonusNoticeSeen: 'ah_bonus_notice',  // start date of the Bonus week whose "liked on Bonus" notice was closed
   theme: 'ah_theme',              // 'dark' (absent = light, the default)
-  filtersFolded: 'ah_filters_folded',
+  filtersFolded: 'ah_filters_folded',              // unused since the filters became a sheet; kept so the name stays reserved
   storesFolded: 'ah_stores_folded',
   listsFolded: 'ah_lists_folded',     // "Liked & hidden products" panel
   blacklist: 'ah_blacklist',      // hidden products [{key, title}]

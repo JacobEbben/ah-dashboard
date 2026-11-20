@@ -91,7 +91,7 @@ Plain ES modules with no build step. `main.js` is the composition root. Allowed 
 |---|---|
 | `core/` (dom, storage, i18n, api, events, config, format, unit, offers, layout) | nothing of the app |
 | `lists/` (likes, blacklist, keyed, panel) | core |
-| `ui/` (cards, density, theme, view, dragdrop, reorder, rename) | core, lists |
+| `ui/` (cards, density, theme, view, dragdrop, reorder, rename, sheet) | core, lists |
 | `sync/` (sync, merge) | core |
 | `bargains/`, `bonus/` | core, lists, ui; **never each other** |
 
@@ -235,5 +235,6 @@ Plain ES modules with no build step. `main.js` is the composition root. Allowed 
 - `AHGateway.configured` treats fakes without a `configured` attribute as configured.
 - The `TTLCache` stale-reload uses `scheduler.spawn` (a no-op after `scheduler.stop()`). In tests `BARGAINS_STALE_SECONDS=0`, so there are no background reloads.
 - `KnownStores` is loaded from the `known_stores` table at start-up and capped at 20,000 ids.
+- Filters live in sheets: `<dialog>`s opened by `ui/sheet.makeSheet` (`#filterSheet` for bargains, `#bonusFilterSheet` for Bonus), at the bottom of the screen on phones (CSS only, ≤700px). The buttons show the number of active filters (`#filterCount`, `#bonusFilterCount`). The bargains' minimum-discount dropdown (`#minDiscSel`) and presets stay in the chip strip on the page (`_quickbar.html`); Liked / Bonus only are in the sheet, which scrolls sideways on phones. `KEYS.filtersFolded`/`bonusFiltersFolded` are no longer used.
 - Admin templates are server-rendered with no JS; admin POSTs redirect with `flash()` messages.
 - `/api/*` responses and every HTML page are `Cache-Control: no-store` (pages carry the CSRF token and account in `app-config`); admin pages also `X-Robots-Tag: noindex, nofollow`. Static files use Flask's defaults (no `SEND_FILE_MAX_AGE_DEFAULT` is set).

@@ -1,16 +1,18 @@
 // @ts-check
-// The bargains' filter settings: the quick bar at the top (min. discount
-// buttons, "liked only", "also in the Bonus", group by and order by
-// dropdowns), the product types (filters panel; presets are named product-type
-// selections, presets.js), plus the name search and the
-// foldable panel. This module owns these settings; when one changes it emits
+// The bargains' filter settings: the quick strip (min. discount dropdown,
+// Remove filters) and the Filters sheet ("liked only", "also in the Bonus",
+// group by, order by, the product types; presets are named product-type selections,
+// presets.js), plus the name search. The Filters button shows how many
+// filters are on. This module owns these settings; when one changes it emits
 // EV.refilter (the controller re-renders) and, once saved, EV.settings
 // (presets mark the active one).
-import { $, makeFoldable, setSelect } from '../core/dom.js';
-import { emit, EV } from '../core/events.js';
+import { $, setSelect } from '../core/dom.js';
+import { emit, EV, on } from '../core/events.js';
 import { searchTerms } from '../core/format.js';
+import { t } from '../core/i18n.js';
 import { KEYS, storage } from '../core/storage.js';
 import { showHiddenEnabled } from '../lists/blacklist.js';
+import { makeSheet } from '../ui/sheet.js';
 import { knownCats } from './model.js';
 
 /** @typedef {import('./model.js').Cats} Cats */
@@ -27,18 +29,34 @@ const ALL_CATS = () => ({ all: true, selected: new Set() });
 
 /** @type {Cats} */
 let cats = ALL_CATS();
-/** "Only liked bargains" (likedOnly setting; the quick-bar pill). */
+/** "Only liked bargains" (likedOnly setting; in the sheet). */
 let likedOnlyOn = false;
-/** "Only bargains also in this week's Bonus" (bonusOnly setting; the quick-bar pill). */
+/** "Only bargains also in this week's Bonus" (bonusOnly setting; in the sheet). */
 let bonusOnlyOn = false;
-/** Minimum discount in percent, as text: one of the quick-bar buttons. */
+/** Minimum discount in percent, as text: one of the strip dropdown's values. */
 let minDiscValue = '0';
 const MIN_DISCS = ['0', '25', '40', '70'];
 /** @type {() => Offer[]} the loaded bargains (set by initFilters) */
 let items = () => [];
 
 /** A setting changed: re-render, leaving any overview selection. */
-const refilter = () => emit(EV.refilter, { clearFocus: true });
+const refilter = () => { syncFilterState(); emit(EV.refilter, { clearFocus: true }); };
+
+/** Filters in the sheet that hide bargains (the strip's discount dropdown shows its own value). */
+const sheetFilterCount = () => (cats.all ? 0 : 1) + (likedOnlyOn ? 1 : 0) + (bonusOnlyOn ? 1 : 0);
+
+/** The count on the Filters button, and Remove filters only while something is filtered. */
+function syncFilterState() {
+  const n = sheetFilterCount();
+  const count = $('filterCount');
+  count.hidden = n === 0;
+  count.textContent = String(n);
+  $('filterMenuBtn').setAttribute('aria-label', n ? `${t('filters')}, ${t('filtersActive', n)}` : t('filters'));
+  const any = n > 0 || minDiscValue !== '0' || !!searchQuery();
+  $('minDiscSel').classList.toggle('active', minDiscValue !== '0');
+  $('clearFilters').hidden = !any;
+  /** @type {HTMLButtonElement} */ ($('sheetClear')).disabled = !any;
+}
 
 // ---- product types -------------------------------------------------------------------
 // Settings store the product types that are ON: cats: 'all' (every type, also
@@ -113,7 +131,7 @@ export const bonusOnly = () => bonusOnlyOn;
 function setBonusOnly(on) {
   bonusOnlyOn = on;
   const b = $('bonusOnlyBtn');
-  b.classList.toggle('active', on);
+  b.classList.toggle('off', !on);
   b.setAttribute('aria-pressed', String(on));
   if (on) emit(EV.needBonus);   // the filter needs this week's Bonus
 }
@@ -124,19 +142,14 @@ export const likedOnly = () => likedOnlyOn;
 function setLikedOnly(on) {
   likedOnlyOn = on;
   const b = $('likedOnlyBtn');
-  b.classList.toggle('active', on);
+  b.classList.toggle('off', !on);
   b.setAttribute('aria-pressed', String(on));
 }
 
-/** The minimum-discount buttons: one is pressed. @param {unknown} value */
+/** The minimum-discount dropdown. @param {unknown} value */
 function setMinDiscValue(value) {
   minDiscValue = MIN_DISCS.includes(String(value)) ? String(value) : '0';
-  document.querySelectorAll('#discBar .discbtn').forEach(el => {
-    const b = /** @type {HTMLElement} */ (el);
-    const on = b.dataset.disc === minDiscValue;
-    b.classList.toggle('active', on);
-    b.setAttribute('aria-pressed', String(on));
-  });
+  /** @type {HTMLSelectElement} */ ($('minDiscSel')).value = minDiscValue;
 }
 
 /** Current settings as a plain object (what is remembered). @returns {Settings} */
@@ -195,7 +208,7 @@ export const searchQuery = () => String($('productSearch').value).trim();
 
 /** @param {boolean} visible */
 export function setFilterPanelVisible(visible) {
-  $('filterPanel').hidden = !visible;
+  $('typesSection').hidden = !visible;
   $('searchBar').hidden = !visible;
 }
 
@@ -207,6 +220,7 @@ function initSearch() {
   const run = () => {
     clearTimeout(timer);
     clearBtn.hidden = !input.value;
+    syncFilterState();
     // Typing a search leaves the overview selection.
     emit(EV.refilter, { clearFocus: !!input.value.trim() });
   };
@@ -224,9 +238,7 @@ function initSearch() {
 /** @param {() => Offer[]} getItems the loaded bargains */
 export function initFilters(getItems) {
   items = getItems;
-  const setFolded = makeFoldable($('filterPanel'), $('filterToggle'),
-    folded => storage.set(KEYS.filtersFolded, folded ? '1' : '0'));
-  setFolded(storage.get(KEYS.filtersFolded) !== '0');
+  makeSheet(/** @type {HTMLDialogElement} */ ($('filterSheet')), $('filterMenuBtn'));
 
   // Restore remembered settings.
   const saved = storage.getJSON(KEYS.settings);
@@ -243,11 +255,12 @@ export function initFilters(getItems) {
   updateCatChips();
 
   initSearch();
-  document.querySelectorAll('#discBar .discbtn').forEach(el => {
-    const b = /** @type {HTMLElement} */ (el);
-    b.addEventListener('click', () => { setMinDiscValue(b.dataset.disc); refilter(); });
-  });
+  syncFilterState();
+  // The labels are translated text: redo them when the language changes.
+  on(EV.lang, syncFilterState);
+  $('minDiscSel').addEventListener('change', (/** @type {any} */ e) => { setMinDiscValue(e.target.value); refilter(); });
   $('clearFilters').addEventListener('click', clearFilters);
+  $('sheetClear').addEventListener('click', clearFilters);
   $('likedOnlyBtn').addEventListener('click', () => { setLikedOnly(!likedOnly()); refilter(); });
   $('bonusOnlyBtn').addEventListener('click', () => { setBonusOnly(!bonusOnly()); refilter(); });
   // Order and grouping keep the overview selection.

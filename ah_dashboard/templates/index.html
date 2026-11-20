@@ -16,14 +16,15 @@
     {# Alert for the special product "AH Groente & Fruit zakje" (a 0% bargain),
        the whole bar is a button that shows just those bargains (static/js/bargains/special.js). #}
     <div id="specialNotice" role="status" hidden></div>
-    {% include "partials/_quickbar.html" %}
     {# The "Liked & hidden products" panel moves to the panel row of the view
        that is shown (static/js/ui/view.js), so both views can manage the lists. #}
     <div id="bargainsPanelRow" class="panelrow">
-      {% include "partials/_stores_panel.html" %}
       {% include "partials/_filters_panel.html" %}
+      {% include "partials/_stores_panel.html" %}
       {% include "partials/_lists_panel.html" %}
     </div>
+    {% include "partials/_quickbar.html" %}
+    {% include "partials/_filter_sheet.html" %}
     {% include "partials/_search_bar.html" %}
 
     <div id="status" class="status" role="status" aria-live="polite"></div>
@@ -38,6 +39,7 @@
       {% include "partials/_bonus_filters_panel.html" %}
       {% include "partials/_bonus_groups_panel.html" %}
     </div>
+    {% include "partials/_bonus_filter_sheet.html" %}
     <div id="bonusCats" class="bonuscats" role="group" data-i18n-aria="bonusCategories" hidden></div>
     {# Search over every Bonus category. Hidden until the Bonus is loaded. #}
     <div id="bonusSearchBar" class="searchbar" role="search" hidden>

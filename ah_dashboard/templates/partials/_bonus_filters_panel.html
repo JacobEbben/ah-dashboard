@@ -1,40 +1,6 @@
-{# Bonus view: filters and sorting (remembered per browser, synced when signed in). #}
-<div id="bonusFilterPanel" class="filterpanel collapsed">
-  <button type="button" id="bonusFilterToggle" class="foldbtn" aria-expanded="false" aria-controls="bonusFilters">
-    <span class="chev">▾</span> <span data-i18n="bonusFiltersTitle"></span> <span id="bonusFilterSummary" class="foldcount"></span>
-  </button>
-  <div id="bonusFilters" class="filters">
-    <div class="filterrow">
-      <label for="bonusMinSave" data-i18n="minSaving"></label>
-      <select id="bonusMinSave">
-        <option value="0" data-i18n="all"></option>
-        {% for n in (25, 40, 50) %}
-        <option value="{{ n }}" data-i18n="minN" data-n="{{ n }}"></option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="filterrow">
-      <label for="bonusSort" data-i18n="orderBy"></label>
-      <select id="bonusSort">
-        <option value="ah" data-i18n="sortAh"></option>
-        <option value="save" data-i18n="sortSaving"></option>
-        <option value="price" data-i18n="sortPrice"></option>
-        <option value="unit" data-i18n="unitLowHigh"></option>
-        <option value="name" data-i18n="sortName"></option>
-      </select>
-    </div>
-    <div class="filterrow catrow">
-      <label data-i18n="dealTypes"></label>
-      <div id="bonusTypes" class="cats" role="group" data-i18n-aria="dealTypes">
-        {% for type in ("percent", "amount", "multi", "fixed", "other") %}
-        <button type="button" class="cat" data-type="{{ type }}" data-i18n="deal_{{ type }}" aria-pressed="true"></button>
-        {% endfor %}
-      </div>
-    </div>
-    <div class="filterrow fullrow">
-      <div class="cat-actions">
-        <button type="button" id="bonusFiltersReset" class="mini" data-i18n="presetAll" hidden></button>
-      </div>
-    </div>
-  </div>
-</div>
+{# Bonus view: the Filters button (with the number of active filters) that opens the sheet with
+   minimum saving, order and deal types (_bonus_filter_sheet.html; remembered per browser,
+   synced when signed in). #}
+<button type="button" id="bonusFilterBtn" class="foldbtn filterbtn" aria-haspopup="dialog" aria-expanded="false" aria-controls="bonusFilterSheet">
+  {% include "partials/_filter_icon.html" %}<span data-i18n="bonusFiltersTitle"></span><span id="bonusFilterCount" class="filtercount" hidden></span>
+</button>

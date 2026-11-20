@@ -12,7 +12,7 @@
 // Events: emits EV.bonusStatus (bargain cards' Bonus tag, "Bonus"
 // filter); listens to EV.needBonus, EV.lists, EV.cols, EV.lang.
 import { api, errorText } from '../core/api.js';
-import { $, html, makeFoldable } from '../core/dom.js';
+import { $, html } from '../core/dom.js';
 import { emit, on, EV } from '../core/events.js';
 import { euro, fmtDate, searchTerms, fold } from '../core/format.js';
 import { t } from '../core/i18n.js';
@@ -24,6 +24,7 @@ import { cardActions, gridCols, linkedThumb, metaLine, placeSections, section, w
 import { makeDropDraggable } from '../ui/dragdrop.js';
 import { onRenameGesture, startRename } from '../ui/rename.js';
 import { makeReorderable } from '../ui/reorder.js';
+import { makeSheet } from '../ui/sheet.js';
 import { currentView, setView } from '../ui/view.js';
 import { GROUP_NAME_MAX, addToGroup, allGroups, announce, createGroup, groupByKey, groupKey, groupedCats,
   initGroups, renameGroup, renderGroupsPanel, reorderGroups } from './groups.js';
@@ -51,7 +52,12 @@ function saveFilters() {
 
 /** Sync the panel's controls and its summary with `filters`. */
 function syncFilterControls() {
-  $('bonusMinSave').value = String(filters.minSave);
+  document.querySelectorAll('#bonusMinSave .segbtn').forEach(el => {
+    const b = /** @type {HTMLElement} */ (el);
+    const on = b.dataset.save === String(filters.minSave);
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', String(on));
+  });
   $('bonusSort').value = filters.sort;
   document.querySelectorAll('#bonusTypes .cat').forEach(el => {
     const b = /** @type {HTMLElement} */ (el);
@@ -59,12 +65,14 @@ function syncFilterControls() {
     b.classList.toggle('off', !on);
     b.setAttribute('aria-pressed', String(on));
   });
-  $('bonusFiltersReset').hidden = isDefaultFilters(filters);
-  const parts = [];
-  if (filters.minSave) parts.push(t('minN', filters.minSave));
-  if (filters.types !== 'all') parts.push(t('dealTypesN', filters.types.length));
-  if (filters.sort !== 'ah') parts.push($('bonusSort').selectedOptions[0].textContent);
-  $('bonusFilterSummary').textContent = parts.length ? '· ' + parts.join(' · ') : '';
+  /** @type {HTMLButtonElement} */ ($('bonusFiltersReset')).disabled = isDefaultFilters(filters);
+  // The count on the Filters button: the settings that hide offers, plus a non-default order.
+  const n = (filters.minSave ? 1 : 0) + (filters.types !== 'all' ? 1 : 0) + (filters.sort !== 'ah' ? 1 : 0);
+  const count = $('bonusFilterCount');
+  count.hidden = n === 0;
+  count.textContent = String(n);
+  $('bonusFilterBtn').setAttribute('aria-label',
+    n ? `${t('bonusFiltersTitle')}, ${t('filtersActive', n)}` : t('bonusFiltersTitle'));
 }
 
 function filtersChanged() {
@@ -82,11 +90,12 @@ function toggleType(type) {
 }
 
 function initFilterPanel() {
-  const setFolded = makeFoldable($('bonusFilterPanel'), $('bonusFilterToggle'),
-    folded => storage.set(KEYS.bonusFiltersFolded, folded ? '1' : '0'));
-  setFolded(storage.get(KEYS.bonusFiltersFolded) !== '0');
+  makeSheet(/** @type {HTMLDialogElement} */ ($('bonusFilterSheet')), $('bonusFilterBtn'));
   filters = parseFilters(storage.getJSON(KEYS.bonusFilters, null));
-  $('bonusMinSave').addEventListener('change', (/** @type {any} */ e) => { filters.minSave = Number(e.target.value) || 0; filtersChanged(); });
+  document.querySelectorAll('#bonusMinSave .segbtn').forEach(el => {
+    const b = /** @type {HTMLElement} */ (el);
+    b.addEventListener('click', () => { filters.minSave = Number(b.dataset.save) || 0; filtersChanged(); });
+  });
   $('bonusSort').addEventListener('change', (/** @type {any} */ e) => { filters.sort = SORTS.includes(e.target.value) ? e.target.value : 'ah'; filtersChanged(); });
   document.querySelectorAll('#bonusTypes .cat').forEach(el => {
     const b = /** @type {HTMLElement} */ (el);
@@ -262,7 +271,7 @@ const showSections = (parts, n) =>
 
 // ---- the view -------------------------------------------------------------------------------
 function renderBonus() {
-  syncFilterControls();   // panel summary text (also after a language switch)
+  syncFilterControls();   // the Filters button's label (also after a language switch)
   renderNotice();
   const results = $('bonusResults');
   const summary = $('bonusSummary');

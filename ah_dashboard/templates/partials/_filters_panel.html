@@ -1,26 +1,6 @@
-{# Product types and the presets (named product-type selections). Hidden until results are loaded. #}
-<div id="filterPanel" class="filterpanel collapsed" hidden>
-  <button type="button" id="filterToggle" class="foldbtn" aria-expanded="false" aria-controls="filters">
-    <span class="chev">▾</span> <span data-i18n="filtersPresets"></span>
-  </button>
-  <div id="filters" class="filters">
-    <div class="filterrow presetrow">
-      <label for="presetSel" data-i18n="presets"></label>
-      <div class="preset-actions">
-        <select id="presetSel"><option value=""></option></select>
-        <button type="button" id="presetUpdate" class="mini" data-i18n="updatePreset" data-i18n-title="updatePresetTitle" disabled></button>
-        <button type="button" id="presetDel" class="mini" data-i18n="delete" data-i18n-title="deleteTitle" disabled></button>
-        <input id="presetName" type="text" data-i18n-ph="presetNamePh" maxlength="40" autocomplete="off">
-        <button type="button" id="presetSave" class="mini" data-i18n="save" data-i18n-title="saveTitle"></button>
-      </div>
-    </div>
-    <div class="filterrow catrow">
-      <label data-i18n="productTypes"></label>
-      <div class="cat-actions">
-        <button type="button" id="catAll" class="mini" data-i18n="all" data-i18n-title="allCatsTitle" aria-pressed="true"></button>
-        <button type="button" id="catNone" class="mini" data-i18n="none"></button>
-      </div>
-      <div id="cats" class="cats"></div>
-    </div>
-  </div>
-</div>
+{# The bargains' Filters: a button in the panel row (with the number of active filters) that opens
+   a sheet: a dialog, at the bottom of the screen on phones. Changes apply at once; the results
+   update behind it (static/js/bargains/filters.js, presets.js; ui/sheet.js). #}
+<button type="button" id="filterMenuBtn" class="foldbtn filterbtn" aria-haspopup="dialog" aria-expanded="false" aria-controls="filterSheet">
+  {% include "partials/_filter_icon.html" %}<span data-i18n="filters"></span><span id="filterCount" class="filtercount" hidden></span>
+</button>

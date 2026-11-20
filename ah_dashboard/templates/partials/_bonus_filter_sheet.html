@@ -1,0 +1,41 @@
+{# Bonus view: the Filters & sorting sheet (opened by #bonusFilterBtn). Same behaviour as the
+   bargains' sheet (static/js/ui/sheet.js); changes apply at once (static/js/bonus/index.js). #}
+<dialog id="bonusFilterSheet" class="sheet" aria-labelledby="bonusFilterSheetTitle">
+  <div class="sheethead">
+    <h2 id="bonusFilterSheetTitle" data-i18n="bonusFiltersTitle"></h2>
+    <button type="button" class="sheetclose" data-close data-i18n-aria="close" data-i18n-title="close">✕</button>
+  </div>
+  <div class="sheetbody">
+    <section class="sheetsec">
+      <h3 class="sheetlabel" data-i18n="minSaving"></h3>
+      <div id="bonusMinSave" class="segmented" role="group" data-i18n-aria="minSaving">
+        <button type="button" class="segbtn" data-save="0" data-i18n="all" aria-pressed="true"></button>
+        {% for n in (25, 40, 50) %}
+        <button type="button" class="segbtn" data-save="{{ n }}" data-i18n="minN" data-n="{{ n }}" aria-pressed="false"></button>
+        {% endfor %}
+      </div>
+    </section>
+    <section class="sheetsec">
+      <label for="bonusSort" class="sheetlabel" data-i18n="orderBy"></label>
+      <select id="bonusSort">
+        <option value="ah" data-i18n="sortAh"></option>
+        <option value="save" data-i18n="sortSaving"></option>
+        <option value="price" data-i18n="sortPrice"></option>
+        <option value="unit" data-i18n="unitLowHigh"></option>
+        <option value="name" data-i18n="sortName"></option>
+      </select>
+    </section>
+    <section class="sheetsec">
+      <h3 class="sheetlabel" data-i18n="dealTypes"></h3>
+      <div id="bonusTypes" class="cats" role="group" data-i18n-aria="dealTypes">
+        {% for type in ("percent", "amount", "multi", "fixed", "other") %}
+        <button type="button" class="cat" data-type="{{ type }}" data-i18n="deal_{{ type }}" aria-pressed="true"></button>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+  <div class="sheetfoot">
+    <button type="button" id="bonusFiltersReset" class="mini" data-i18n="clearFilters"></button>
+    <button type="button" data-close data-i18n="showResults"></button>
+  </div>
+</dialog>
