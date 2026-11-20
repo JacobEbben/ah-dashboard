@@ -153,7 +153,6 @@ function renderStoreRow() {
   if (store) {
     $('inStorePin').className = `instorepin dot ${colorClass(store.color)}`;
     $('inStoreName').textContent = t('inStoreOnly', store.name);
-    $('inStoreHidden').textContent = stores.length > 1 ? '· ' + t('inStoreHidden', stores.length - 1) : '';
   }
   const box = $('storeChips');
   box.innerHTML = '';

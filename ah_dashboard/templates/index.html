@@ -18,8 +18,12 @@
     <div id="specialNotice" role="status" hidden></div>
     {# The "Liked & hidden products" panel moves to the panel row of the view
        that is shown (static/js/ui/view.js), so both views can manage the lists. #}
-    {% include "partials/_store_strip.html" %}
-    {% include "partials/_quickbar.html" %}
+    {# Stores, minimum discount and presets: on wider screens side by side when they fit, each
+       part always on one line (app.css .quickrows). #}
+    <div class="quickrows">
+      {% include "partials/_store_strip.html" %}
+      {% include "partials/_quickbar.html" %}
+    </div>
     <div id="bargainsPanelRow" class="panelrow">
       {% include "partials/_filters_panel.html" %}
       {% include "partials/_stores_panel.html" %}

@@ -9,7 +9,8 @@
   {# The whole banner is the way back to all stores. #}
   <button type="button" id="inStoreBar" class="instorebar" data-i18n-title="inStoreBackTitle" hidden>
     <span id="inStorePin" class="instorepin dot" aria-hidden="true"></span>
-    <span class="instoretext"><b id="inStoreName"></b> <span id="inStoreHidden" class="instoremeta"></span></span>
-    <span class="instoreback"><span data-i18n="allStores"></span> <span aria-hidden="true">✕</span></span>
+    <b id="inStoreName" class="instoretext"></b>
+    {# Only the ✕ shows; screen readers hear "All stores". #}
+    <span class="instoreback" aria-hidden="true">✕</span><span class="sronly" data-i18n="allStores"></span>
   </button>
 </div>

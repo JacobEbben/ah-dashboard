@@ -704,13 +704,29 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
 .instorebar[hidden] { display: none; }
 .instorepin { width: 12px; height: 12px; border-radius: 50%; flex: none; }
 .instoretext { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
-.instoremeta { font-size: 12px; font-weight: 500; color: var(--muted); }
-.instoreback { flex: none; font-size: 13px; font-weight: 700; white-space: nowrap; }
+.instoreback { flex: none; display: grid; place-items: center; width: 28px; height: 28px; margin-right: -6px;
+  border-radius: 50%; font-size: 15px; font-weight: 700; color: var(--accent-ink); }
+.instorebar:hover .instoreback { background: color-mix(in srgb, var(--accent) 18%, var(--surface)); }
 .mystore .shere { padding: 4px 10px; border-radius: 4px; }
 .mystore .shere[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
 .discseg { margin-top: 10px; max-width: 460px; height: 46px; }
 .discseg .segbtn { font-size: 14px; }
 .filterbtn .filtercount { margin-left: 8px; }
+
+/* Wider screens: stores, minimum discount and presets share a line when they fit. Each part stays
+   on one line of its own: a part wider than the page scrolls sideways instead of wrapping. */
+@media (min-width: 701px) {
+  .quickrows { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; margin-top: 14px; }
+  .quickrows > * { margin-top: 0; min-width: 0; max-width: 100%; }
+  .quickrows .storestrip { flex: 0 1 auto; }
+  .quickrows .chiprow, .quickrows .instorebar { margin-top: 0; }
+  .quickrows .chipscroll { flex: 0 1 auto; }
+  .quickrows .instorebar { width: auto; max-width: 100%; }
+  .quickrows .discseg { flex: none; width: 380px; margin-top: 0; }
+  .quickrows .chipstrip { flex: 0 1 auto; display: flex; align-items: center; height: 46px; margin-top: 0; }
+  .quickrows .presetbar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; padding: 2px; }
+  .quickrows .presetbar > * { flex: none; }
+}
 
 /* The header's tool line: just its items on wide screens, one line on phones. */
 .toolline { display: contents; }
