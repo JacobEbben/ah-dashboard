@@ -1,6 +1,6 @@
 # Tools for deploy/ (Ansible toolbox image). Regenerate requirements.lock after a
 # change (command in deploy/README.md, "Updating the pinned versions").
-ansible-core==2.21.6
+ansible-core==2.22.0
 ansible-lint==26.11.0
 # Same version as the app (requirements.lock): `ah-iac configure` hashes the admin
 # password exactly like `python -m ah_dashboard.admin`.
