@@ -224,7 +224,7 @@ Plain ES modules with no build step. `main.js` is the composition root. Allowed 
   - `app.env` always has `APP_ENV=production`, `TRUSTED_PROXY=*`, `TRUSTED_PROXY_COUNT=1`, `ADMIN_COOKIE_SECURE=true`, `PUBLIC_BASE_URL=https://<domain>`. These and the vault secrets can't be overridden via `app_settings`.
   - Images are deployed by digest only: `ah-deploy deploy <image_repo>@sha256:<64hex>`. It backs up the volume, stops then starts, waits for health, and rolls back automatically (restoring the backup only if the old image refuses the DB).
   - CI uses a restricted SSH key → `ah-deploy-ssh` (`deploy`, `status`, `rollback` only).
-- `release.yml` (main): CI → build → `smoke-image.sh` → Trivy CRITICAL → GHCR push → deploy if `vars.DEPLOY_HOST`. `ci.yml` also runs `pip-audit` and gitleaks over the full history.
+- `release.yml` (main): CI → build → `smoke-image.sh` → Trivy CRITICAL → GHCR push → deploy if the repository variable `DEPLOY_ENABLED` is `true` (a job `if:` can't see environment variables; the connection values are in environment `production`, from vps-platform's `vpsctl github ah-dashboard`). `ci.yml` also runs `pip-audit` and gitleaks over the full history.
 - Secrets (vault password, deploy key) live in `$AH_IAC_HOME` (default `~/.config/ah-dashboard`), never in the repo; don't read them.
 
 ## Gotchas

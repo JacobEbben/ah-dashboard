@@ -1,7 +1,7 @@
 # main: checks -> build the image once -> smoke test + scan -> push to GHCR
 # -> deploy to the VPS over the restricted deploy key (environment "production").
-# The server's ah-deploy backs up the database, switches the image (old one
-# stopped first: one process) and rolls back by itself when unhealthy.
+# The server's app-deploy (vps-platform) backs up the database, switches the image
+# (old one stopped first: one process) and rolls back by itself when unhealthy.
 name: Release
 
 on:
@@ -65,39 +65,46 @@ jobs:
   deploy:
     name: Deploy to the VPS
     needs: build
-    if: vars.DEPLOY_HOST != ''
+    # Switched on by the REPOSITORY variable DEPLOY_ENABLED=true. A job's `if:` is
+    # evaluated before the job enters its environment, so it can't see the
+    # environment's variables (DEPLOY_HOST etc., from `vpsctl github ah-dashboard`).
+    # Only main: also a manual run (workflow_dispatch) from another branch never deploys.
+    if: vars.DEPLOY_ENABLED == 'true' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     environment:
       name: production
       url: https://${{ vars.DOMAIN }}
+    permissions: {}                   # needs no GitHub token rights
     concurrency:
       group: deploy-production
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0 (for the server's known host keys)
-
       - name: Check the image repository
         env:
           IMAGE: ${{ needs.build.outputs.image }}
           IMAGE_REPO: ${{ vars.IMAGE_REPO }}
         run: |
-          [[ "$IMAGE" == "$IMAGE_REPO@sha256:"* ]] || {
-            echo "::error::Built $IMAGE, but the server only accepts $IMAGE_REPO (vars.IMAGE_REPO / image_repo in the inventory)."
+          [[ "$IMAGE" =~ ^"$IMAGE_REPO"@sha256:[0-9a-f]{64}$ ]] || {
+            echo "::error::Built $IMAGE, but the server only accepts $IMAGE_REPO@sha256:<digest> (vars.IMAGE_REPO / image_repo in vps-platform)."
             exit 1; }
 
+      # vps-platform's app-deploy (as deploy-ah-dashboard; the key can only run
+      # deploy/status/rollback of this app): backup, stop old, start new,
+      # health check, automatic rollback. Values only via env, never ${{ }} in the script.
       - name: Deploy (backup, switch, health check, rollback on failure)
         env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
           IMAGE: ${{ needs.build.outputs.image }}
-          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
-          DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          TARGET: ${{ vars.DEPLOY_USER }}@${{ vars.DEPLOY_HOST }}
+          PORT: ${{ vars.DEPLOY_PORT || '22' }}
         run: |
-          key="$RUNNER_TEMP/deploy_key"
-          install -m 600 /dev/null "$key"
-          printf '%s\n' "$DEPLOY_SSH_KEY" > "$key"
-          ssh -i "$key" -p "$DEPLOY_PORT" -o IdentitiesOnly=yes -o BatchMode=yes \
-            -o StrictHostKeyChecking=yes -o UserKnownHostsFile=deploy/ansible/inventory/production/known_hosts \
-            "ah-deploy@$DEPLOY_HOST" "deploy $IMAGE"
+          umask 077
+          printf '%s\n' "$KEY" > "$RUNNER_TEMP/key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/known_hosts"
+          ssh -i "$RUNNER_TEMP/key" -p "$PORT" -o BatchMode=yes -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts" \
+              "$TARGET" "deploy $IMAGE"
 
       - name: Public health check through Caddy
         env:

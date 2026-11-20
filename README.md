@@ -258,7 +258,7 @@ deploy/ah-iac vault-edit | github | check | shell
   3. `deploy/tests/smoke-image.sh`.
   4. Trivy (fixable CRITICAL issues fail the release).
   5. Push to `ghcr.io/<owner>/ah-dashboard` (`sha-<sha>` and `main` tags).
-  6. If `vars.DEPLOY_HOST` is set: deploy over SSH with the restricted key (environment `production`), then a public `/healthz` check.
+  6. If the repository variable `DEPLOY_ENABLED` is `true`: deploy over SSH with the restricted key (environment `production`), then a public `/healthz` check.
 - `infra.yml` is manual: runs `site.yml` as a dry run or apply (environment `infrastructure`).
 - `dependabot.yml` sends weekly updates for GitHub Actions, Docker base digests, and pip (app and toolbox).
 
