@@ -155,8 +155,14 @@ button.secondary:hover { background: color-mix(in srgb, var(--accent) 8%, var(--
 /* The bargains' chip strip (Remove filters, Liked, Bonus | presets). Phones: one
    sideways-scrolling line, like the Bonus categories, instead of several rows. */
 .chipstrip { margin-top: 12px; }
-.clearchip { display: inline-flex; align-items: center; gap: 6px; color: var(--accent-ink); border-style: dashed; }
-.clearchip[hidden] { display: none; }
+/* The count line with Remove filters at its right end (a text button: it appears without moving anything). */
+.summaryrow { display: flex; align-items: baseline; gap: 4px 16px; }
+.summaryrow .summary { flex: 1 1 auto; min-width: 0; }
+.linkbtn { flex: none; margin-left: auto; padding: 2px 0; background: none; border: 0; box-shadow: none;
+  color: var(--accent-ink); font-size: 13px; font-weight: 700; text-decoration: underline;
+  text-underline-offset: 3px; text-decoration-thickness: 1px; }
+.linkbtn:hover { text-decoration-thickness: 2px; }
+.linkbtn[hidden] { display: none; }
 /* The minimum-discount dropdown in the strip: chip-sized, filled while it filters. */
 .chipselect { width: auto; flex: none; padding: 7px 32px 7px 12px; font-size: 13px; font-weight: 700;
   border-radius: var(--radius-tag); box-shadow: var(--shadow-xs); }

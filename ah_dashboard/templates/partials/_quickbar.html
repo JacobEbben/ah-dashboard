@@ -1,12 +1,7 @@
-{# The bargains' quick switches in one strip: Remove filters (only while something is filtered),
-   the minimum discount (a dropdown), then the presets (named product-type selections). On phones the strip scrolls
+{# The bargains' quick switches in one strip: the minimum discount (a dropdown), then the presets (named product-type selections). On phones the strip scrolls
    sideways instead of wrapping onto many rows. The other settings are in the Filters sheet
    (_filters_panel.html; static/js/bargains/filters.js, presets.js). #}
 <div class="quickbar chipstrip">
-  {# Everything back to the most complete view: all types and discounts, not only liked / Bonus, no search. #}
-  <button type="button" id="clearFilters" class="presetbtn clearchip" data-i18n-title="clearFiltersTitle" hidden>
-    <span aria-hidden="true">✕</span> <span data-i18n="clearFilters"></span>
-  </button>
   <label for="minDiscSel" class="sronly" data-i18n="minDisc"></label>
   <select id="minDiscSel" class="chipselect">
     <option value="0" data-i18n="anyDiscount"></option>

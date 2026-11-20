@@ -29,7 +29,14 @@
 
     <div id="status" class="status" role="status" aria-live="polite"></div>
     <div id="focusBar" class="focusbar" role="status" hidden></div>
-    <div id="summary" class="summary"></div>
+    {# The count line, with Remove filters at its right end: it appears only while something is
+       filtered, and there it moves no control (static/js/bargains/filters.js). #}
+    <div class="summaryrow">
+      <div id="summary" class="summary"></div>
+      <button type="button" id="clearFilters" class="linkbtn" data-i18n-title="clearFiltersTitle" hidden>
+        <span aria-hidden="true">✕</span> <span data-i18n="clearFilters"></span>
+      </button>
+    </div>
     <div id="results"></div>
   </div>
 
