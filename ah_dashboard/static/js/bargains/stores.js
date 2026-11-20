@@ -150,8 +150,8 @@ function renderStoreRow() {
   const store = stores.find(s => s.id === here);
   $('storeRow').hidden = !!store;
   $('inStoreBar').hidden = !store;
-  $('results').classList.toggle('instore', !!store);
   if (store) {
+    $('inStorePin').className = `instorepin dot ${colorClass(store.color)}`;
     $('inStoreName').textContent = t('inStoreOnly', store.name);
     $('inStoreHidden').textContent = stores.length > 1 ? '· ' + t('inStoreHidden', stores.length - 1) : '';
   }
@@ -261,7 +261,12 @@ export function initStores() {
     $('storeQuery').focus({ preventScroll: true });
     $('storePanel').scrollIntoView({ block: 'nearest' });
   });
-  $('inStoreExit').addEventListener('click', () => setInStore(null));
+  $('inStoreBar').addEventListener('click', () => {
+    setInStore(null);
+    // The banner is gone: keep the keyboard focus on that store's chip.
+    const chips = $('storeChips').querySelectorAll('.storechip');
+    if (chips.length) /** @type {HTMLElement} */ (chips[0]).focus({ preventScroll: true });
+  });
   // Back to the tab after a while: "I'm in this store" may have ended.
   let lastHere = inStoreId();
   document.addEventListener('visibilitychange', () => {

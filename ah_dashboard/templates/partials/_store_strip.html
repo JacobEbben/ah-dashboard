@@ -1,14 +1,15 @@
 {# The followed stores as chips (one colour each). Tap one = "I'm in this store": only its bargains,
    until tapped again, "All stores", 2 hours or midnight. Then the row shows a banner of the same
-   height instead, so nothing below moves. ＋ opens the Stores panel (static/js/bargains/stores.js). #}
+   height instead (tap it to go back), so nothing below moves. ＋ opens the Stores panel (static/js/bargains/stores.js). #}
 <div class="storestrip">
   <div class="chiprow storerow" id="storeRow">
     <div id="storeChips" class="chipscroll" role="group" data-i18n-aria="stores"></div>
     <button type="button" id="storeManageBtn" class="chipicon" aria-controls="storeBody" data-i18n-aria="manageStores" data-i18n-title="manageStores">＋</button>
   </div>
-  <div id="inStoreBar" class="instorebar" role="status" hidden>
-    <span class="instorepin" aria-hidden="true"></span>
+  {# The whole banner is the way back to all stores. #}
+  <button type="button" id="inStoreBar" class="instorebar" data-i18n-title="inStoreBackTitle" hidden>
+    <span id="inStorePin" class="instorepin dot" aria-hidden="true"></span>
     <span class="instoretext"><b id="inStoreName"></b> <span id="inStoreHidden" class="instoremeta"></span></span>
-    <button type="button" id="inStoreExit" class="instoreexit"><span data-i18n="allStores"></span> <span aria-hidden="true">✕</span></button>
-  </div>
+    <span class="instoreback"><span data-i18n="allStores"></span> <span aria-hidden="true">✕</span></span>
+  </button>
 </div>

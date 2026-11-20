@@ -696,16 +696,16 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
   box-shadow: none; }
 .chipicon:hover { background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
 /* The banner takes the store row's place at the same height. */
-.instorebar { display: flex; align-items: center; gap: 10px; height: 46px; margin-top: 14px; padding: 0 5px 0 14px;
-  background: var(--ink); color: var(--surface); border-radius: var(--radius); min-width: 0; }
+.instorebar { display: flex; align-items: center; gap: 10px; width: 100%; height: 46px; margin-top: 14px;
+  padding: 0 14px; font: inherit; font-size: 14px; font-weight: 600; text-align: left; cursor: pointer;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface)); color: var(--accent-ink);
+  border: 1px solid var(--accent); border-radius: var(--radius); box-shadow: var(--shadow-sm); min-width: 0; }
+.instorebar:hover { background: color-mix(in srgb, var(--accent) 16%, var(--surface)); }
 .instorebar[hidden] { display: none; }
-.instorepin { width: 12px; height: 12px; border-radius: 50%; flex: none; background: var(--or); }
-.instoretext { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
-.instoremeta { font-size: 12px; opacity: .8; }
-.instoreexit { flex: none; height: 36px; padding: 0 12px; background: var(--surface); color: var(--ink);
-  border: 0; border-radius: var(--radius-ctl); font-size: 13px; }
-.instoreexit:hover { background: var(--surface-2); }
-#results.instore { outline: 3px solid var(--ink); outline-offset: 6px; border-radius: 2px; }
+.instorepin { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+.instoretext { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.instoremeta { font-size: 12px; font-weight: 500; color: var(--muted); }
+.instoreback { flex: none; font-size: 13px; font-weight: 700; white-space: nowrap; }
 .mystore .shere { padding: 4px 10px; border-radius: 4px; }
 .mystore .shere[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
 .discseg { margin-top: 10px; max-width: 460px; height: 46px; }
@@ -726,7 +726,7 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
   .controls .langsel { padding: 6px 22px 6px 8px; font-size: 13px; background-position: right 5px center; }
   .controls .authbtn, .controls .userbox { grid-column: 1 / -1; }
   .controls .viewswitch { display: grid; grid-template-columns: 1fr 1fr; }
-  .controls .toolline { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; }
+  .controls .toolline { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
   .controls .toolline .viewswitch { flex: 1 1 auto; }
   .controls .toolline #go { padding: 8px 14px; font-size: 13px; }
   .controls .authbtn { padding: 7px 12px; font-size: 13px; }
@@ -735,7 +735,9 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
   .controls .apptitle { font-size: 15px; gap: 8px; }
   .controls .apptitle::before { width: 28px; height: 28px; font-size: 13px; }
   .controls .toolline .viewbtn { padding: 7px 10px; }
-  .controls .toolline #go, .controls .toolline #forceRefresh { flex: none; }
+  .controls .toolline #go { flex: none; }
+  /* Admins: Force refresh gets a line of its own instead of pushing past the edge. */
+  .controls .toolline #forceRefresh { flex: 1 1 100%; padding: 8px 14px; font-size: 13px; }
   .chiprow, .instorebar { height: 44px; margin-top: 10px; }
   .discseg { max-width: none; height: 44px; }
   .storechip { padding: 8px 12px; }
