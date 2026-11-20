@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+{% block title %}Admin · AH Dashboard{% endblock %}
+{% block body %}
+<div class="wrap admin">
+  <div class="adminhead">
+    <h1>Admin</h1>
+    <div class="adminheadactions">
+      <a class="secondary authbtn" href="{{ url_for('web.index') }}">Dashboard</a>
+      <form method="post" action="{{ url_for('admin.logout') }}">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <button type="submit" class="secondary">Log out</button>
+      </form>
+    </div>
+  </div>
+
+  {% for category, message in get_flashed_messages(with_categories=true) %}
+    <p class="adminmsg {{ 'error' if category == 'error' else 'ok' }}">{{ message }}</p>
+  {% endfor %}
+
+  {# Two cards per row on wide screens (one on narrow ones); the users card spans both. #}
+  <div class="admingrid">
+  <div class="admincard">
+    <h2>AH login status</h2>
+    {% if status.configured %}
+      <dl class="adminstatus">
+        <dt>Status</dt>
+        <dd>{% if status.last_renewal_failed %}<span class="bad">Last renewal failed</span>{% else %}<span class="good">Configured</span>{% endif %}</dd>
+        <dt>Set via</dt><dd>{{ 'admin panel' if status.source == 'admin' else ('.env / environment' if status.source == 'environment' else status.source) }}</dd>
+        <dt>Set at</dt><dd>{{ status.set_at | admin_time }}</dd>
+        <dt>Access token</dt><dd>{{ 'present' if status.has_access_token else 'none yet (obtained on first use)' }}</dd>
+        <dt>Last renewed</dt><dd>{{ status.renewed_at | admin_time }}</dd>
+        <dt>Access token expires</dt><dd>{{ status.expires_at | admin_time }}</dd>
+        <dt>Refresh token</dt>
+        <dd>{% if status.refresh_kind == 'refresh' %}<span class="good">looks right</span>
+          {% else %}<span class="bad">does not look like a refresh token
+            ({{ {'access': 'it looks like the access token', 'code': 'it looks like a login code',
+                 'jwt': 'unknown kind of token'}.get(status.refresh_kind, 'unknown format') }})</span>:
+            AH will refuse to renew it. Log in again below.{% endif %}</dd>
+      </dl>
+      <form method="post" action="{{ url_for('admin.renew') }}" class="inline">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <button type="submit" class="secondary">Renew access token now</button>
+      </form>
+    {% else %}
+      <p class="adminmsg error">No AH login configured: the app cannot load bargains. Set tokens below.</p>
+    {% endif %}
+  </div>
+
+  <div class="admincard">
+    <h2>Server health</h2>
+    <dl class="adminstatus">
+      {% if health.ah %}
+      <dt>AH requests</dt>
+      <dd>{{ health.ah.requests }} since start · {% if health.ah.failures %}<span class="bad">{{ health.ah.failures }} failed</span>{% else %}<span class="good">none failed</span>{% endif %}</dd>
+      <dt>Last success</dt><dd>{{ health.ah.last_ok | admin_time }}</dd>
+      <dt>Last failure</dt><dd>{{ health.ah.last_failure | admin_time }}</dd>
+      {% endif %}
+      <dt>Bonus</dt>
+      <dd>{% if health.bonus.loaded %}
+          {{ health.bonus.offers }} offers · {{ health.bonus.period.start or '?' }} – {{ health.bonus.period.end or '?' }}
+          {% if not health.bonus.current_week %}<span class="bad">· not this week</span>{% endif %}
+          {% if health.bonus.failed_categories %}<span class="bad">· {{ health.bonus.failed_categories }} categories failed</span>{% endif %}
+          · loaded {{ health.bonus.loaded_at | admin_time }}
+        {% else %}not loaded yet{% endif %}
+        · background loading {{ 'on' if health.bonus.background else 'off' }}</dd>
+      <dt>Bargains cache</dt>
+      <dd>{{ health.bargains.entries }} stores{% if health.bargains.errors %} · {{ health.bargains.errors }} failing{% endif %}</dd>
+      <dt>Store searches</dt><dd>{{ health.stores.entries }} postal codes cached</dd>
+      <dt>Rate limited</dt><dd>{{ health.rate_limited }} requests refused since start</dd>
+      <dt>Users</dt>
+      <dd>{{ health.users.count }} of at most {{ health.users.max }}{% if health.users.count >= health.users.max * 0.9 %} <span class="bad">· nearly full: new sign-ups will be refused</span>{% endif %}
+</dd>
+      <dt>Database</dt>
+      <dd>data {{ health.db.data | admin_size }} · write-ahead log {{ health.db.log | admin_size }} <span class="smeta">(emptied hourly)</span></dd>
+    </dl>
+  </div>
+
+  <div class="admincard" id="ah-login">
+    <h2>Log in with an AH login code</h2>
+    <p class="smeta">The easiest way to (re)connect the server's AH login: no tokens to copy by hand.</p>
+    <ol class="smeta adminsteps">
+      <li>Open <a href="{{ ah_login_url }}" target="_blank" rel="noopener noreferrer">AH's login page</a> and log in with the AH account the server should use.</li>
+      <li>At the end, the page tries to open an <code>appie://login-exit?code=…</code> link, which the browser can't open.
+        Open the developer tools (F12): the Console or Network tab shows that link. Copy it.</li>
+      <li>Paste it here straight away (a code works once, for a short time).</li>
+    </ol>
+    <form method="post" action="{{ url_for('admin.login_with_code') }}" autocomplete="off">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label for="login_code">Login code, or the whole appie://login-exit?code=… link</label>
+      <input id="login_code" name="code" type="password" required autocomplete="off" spellcheck="false">
+      <button type="submit">Log in to AH</button>
+    </form>
+  </div>
+
+  <div class="admincard">
+    <h2>Set AH tokens</h2>
+    <p class="smeta">Replaces the current login. Tokens are stored encrypted on the server and are
+      never shown again. The access token is optional: with only a refresh token, the server gets a
+      new access token on first use. The refresh token looks like <code>xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx</code>;
+      the access token starts with a number and "_". You can also paste AH's whole JSON answer into the refresh token field.</p>
+    <form method="post" action="{{ url_for('admin.set_tokens') }}" autocomplete="off">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label for="access_token">Access token (optional)</label>
+      <input id="access_token" name="access_token" type="password" autocomplete="off" spellcheck="false">
+      <label for="refresh_token">Refresh token</label>
+      <input id="refresh_token" name="refresh_token" type="password" required autocomplete="off" spellcheck="false">
+      <button type="submit">Save tokens</button>
+    </form>
+  </div>
+
+  <div class="admincard" id="errors">
+    <h2>Look up an error</h2>
+    {% if error_log %}
+    <p class="smeta">Users only see a reference with an error (e.g. "reference 3f9c0a1b2d"). Paste it here to see what
+      happened. Anything around the reference is ignored.</p>
+    <form method="get" action="{{ url_for('admin.errors') }}" autocomplete="off">
+      <label for="ref">Reference</label>
+      <input id="ref" name="ref" required maxlength="200" spellcheck="false" placeholder="3f9c0a1b2d">
+      <button type="submit">Look up</button>
+    </form>
+    <p class="smeta adminlink"><a href="{{ url_for('admin.errors') }}">Show the latest errors and warnings</a></p>
+    {% else %}
+    <p class="smeta">The error log is off (<code>ERROR_LOG_FILE</code> is empty), so references can't be looked up.</p>
+    {% endif %}
+  </div>
+
+  <div class="admincard" id="lockouts">
+    <h2>Login lockouts</h2>
+    <p class="smeta">Failed admin-password sign-ins, per client (IPv4 address or IPv6 /64) and for the password itself
+      (counted over all clients). A lock ends by itself; lift it here if you locked yourself out.
+      Google sign-ins are not counted here.</p>
+    {% if lockouts %}
+    <div class="userlist">
+      {% for e in lockouts %}
+      <div class="userrow">
+        <div class="userinfo">
+          <b>{{ e.label }}</b>
+          {% if e.locked %}<span class="badge-off">locked</span>{% endif %}
+          <span class="smeta">{{ e.failures }} of {{ e.max_failures }} failed attempts{% if e.locked %} · opens by itself in about {{ ((e.seconds_left / 60) | round(0, 'ceil')) | int }} min{% endif %}</span>
+        </div>
+        <div class="useractions">
+          <form method="post" action="{{ url_for('admin.unlock') }}" class="inline-form">
+            <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="key" value="{{ e.key }}">
+            <button type="submit" class="mini">{{ 'Unlock' if e.locked else 'Reset' }}</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <form method="post" action="{{ url_for('admin.clear_lockouts') }}" class="inline">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button type="submit" class="secondary">Unlock all</button>
+    </form>
+    {% else %}
+    <p class="smeta">No failed admin-password sign-ins recently.</p>
+    {% endif %}
+  </div>
+
+  <div class="admincard wide" id="users">
+    <h2>Dashboard users</h2>
+    <p class="smeta">
+      Signing in is optional and works with Google: anyone with a verified Google account can sign in, and the first
+      sign-in creates the account (at most {{ max_users }}). A signed-in user's settings (stores, filters, presets,
+      likes, hidden products, language, theme) are saved on the server and synced to their other devices. No passwords
+      are stored. Disabling or deleting a user signs them out everywhere; deleting also deletes their saved settings.
+      An <b>admin</b> user has the same rights as the admin password: signing in with Google opens an admin session.
+      Removing admin, disabling or deleting them ends it at once.
+      An account without a linked Google account (from before Google sign-in) is linked on the first Google sign-in
+      with its e-mail address: set that address below.
+    </p>
+    {% if users %}
+    <div class="userlist">
+      {% for u in users %}
+      <div class="userrow{% if u.disabled %} is-disabled{% endif %}">
+        <div class="userinfo">
+          <b>{{ u.username }}</b>
+          {% if u.is_admin %}<span class="badge-admin">admin</span>{% endif %}
+          {% if u.disabled %}<span class="badge-off">disabled</span>{% endif %}
+          {% if not u.google_sub %}<span class="badge-off">not linked to Google</span>{% endif %}
+          {% if me == u.username %}<span class="smeta">(you)</span>{% endif %}
+          <span class="smeta">{{ u.email or 'no e-mail address' }} · added {{ u.created_at | admin_time }} · last sign-in {{ u.last_login | admin_time }} · synced settings {{ prefs_sizes.get(u.username, 0) | admin_size }}</span>
+        </div>
+        <div class="useractions">
+          <form method="post" action="{{ url_for('admin.set_user_email') }}" class="inline-form" autocomplete="off">
+            <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="username" value="{{ u.username }}">
+            <input name="email" type="email" maxlength="320" required placeholder="E-mail address"
+                   aria-label="E-mail address for {{ u.username }}">
+            <button type="submit" class="mini" title="Links the Google account with this address on its next sign-in (unlinks the current one)">Set e-mail</button>
+          </form>
+          <form method="post" action="{{ url_for('admin.demote_user' if u.is_admin else 'admin.promote_user') }}" class="inline-form">
+            <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="username" value="{{ u.username }}">
+            <button type="submit" class="mini">{{ 'Remove admin' if u.is_admin else 'Make admin' }}</button>
+          </form>
+          <form method="post" action="{{ url_for('admin.enable_user' if u.disabled else 'admin.disable_user') }}" class="inline-form">
+            <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="username" value="{{ u.username }}">
+            <button type="submit" class="mini">{{ 'Enable' if u.disabled else 'Disable' }}</button>
+          </form>
+          <form method="post" action="{{ url_for('admin.delete_user') }}" class="inline-form">
+            <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="username" value="{{ u.username }}">
+            <label class="confirm"><input type="checkbox" name="confirm" value="yes" required class="check"> Confirm</label>
+            <button type="submit" class="mini danger">Delete</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="smeta">No users yet: they appear after their first Google sign-in.</p>
+    {% endif %}
+  </div>
+  </div>
+</div>
+{% endblock %}

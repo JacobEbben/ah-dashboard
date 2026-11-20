@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{# Text is filled in by static/js/i18n.js from the data-i18n* attributes, so
+   the UI language can switch without a reload. #}
+
+{% block body %}
+<div class="wrap">
+  {% include "partials/_controls.html" %}
+
+  {# "N of your liked products are on Bonus this week": shown on both views
+     until closed (once per Bonus week). Filled by static/js/bonus/index.js. #}
+  <div id="likedNotice" class="focusbar likednotice" role="status" hidden></div>
+
+  {# View 1: last-chance bargains per store #}
+  <div id="bargainsView">
+    {# Alert for the special product "AH Groente & Fruit zakje" (a 0% bargain),
+       the whole bar is a button that shows just those bargains (static/js/bargains/special.js). #}
+    <div id="specialNotice" role="status" hidden></div>
+    {% include "partials/_quickbar.html" %}
+    {# The "Liked & hidden products" panel moves to the panel row of the view
+       that is shown (static/js/ui/view.js), so both views can manage the lists. #}
+    <div id="bargainsPanelRow" class="panelrow">
+      {% include "partials/_stores_panel.html" %}
+      {% include "partials/_filters_panel.html" %}
+      {% include "partials/_lists_panel.html" %}
+    </div>
+    {% include "partials/_search_bar.html" %}
+
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+    <div id="focusBar" class="focusbar" role="status" hidden></div>
+    <div id="summary" class="summary"></div>
+    <div id="results"></div>
+  </div>
+
+  {# View 2: this week's national Bonus #}
+  <div id="bonusView" hidden>
+    <div id="bonusPanelRow" class="panelrow">
+      {% include "partials/_bonus_filters_panel.html" %}
+      {% include "partials/_bonus_groups_panel.html" %}
+    </div>
+    <div id="bonusCats" class="bonuscats" role="group" data-i18n-aria="bonusCategories" hidden></div>
+    {# Search over every Bonus category. Hidden until the Bonus is loaded. #}
+    <div id="bonusSearchBar" class="searchbar" role="search" hidden>
+      <label for="bonusSearch" class="searchlabel" data-i18n="searchBonus"></label>
+      <input id="bonusSearch" type="search" class="wide-input" data-i18n-ph="searchBonusPh"
+             maxlength="100" autocomplete="off" spellcheck="false">
+      <button type="button" id="bonusSearchClear" class="mini" data-i18n="clear" hidden></button>
+    </div>
+    <div id="bonusStatus" class="status" role="status" aria-live="polite"></div>
+    <div id="bonusSummary" class="summary"></div>
+    <div id="bonusResults"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  <script type="application/json" id="app-config">{{ client_config | tojson }}</script>
+  <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% endblock %}

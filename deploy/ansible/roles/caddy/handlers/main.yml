@@ -1,0 +1,6 @@
+---
+# Graceful: no dropped connections, certificates kept.
+- name: Reload caddy
+  ansible.builtin.command:
+    cmd: docker exec {{ caddy_container }} caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+  changed_when: true

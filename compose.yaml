@@ -1,0 +1,37 @@
+# docker compose up -d --build
+#
+# Settings come from .env (same file as for `python serve.py`; see .env.example).
+# HOST/PORT below override .env inside the container.
+services:
+  ah-dashboard:
+    build: .
+    image: ah-dashboard:latest
+    container_name: ah-dashboard
+    restart: unless-stopped
+    # Short form on purpose: the long form (path/required) only works with
+    # Docker Compose v2.24+, and the old docker-compose v1 rejects the file.
+    env_file:
+      - .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: "8733"
+    ports:
+      # Only reachable from this machine. To expose it, put a reverse proxy with
+      # HTTPS in front (and set ADMIN_COOKIE_SECURE=true), or change this to
+      # "8733:8733" if you understand that everyone who can reach it uses your AH login.
+      - "127.0.0.1:8733:8733"
+    volumes:
+      - ah-instance:/app/instance   # SQLite database + generated seal secret
+      - ah-logs:/app/logs           # errors.log
+    # Hardening: read-only image filesystem, no extra privileges.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  ah-instance:
+  ah-logs:

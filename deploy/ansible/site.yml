@@ -1,0 +1,12 @@
+---
+# The whole server: base system, Docker, Caddy (HTTPS), the app and its deploy
+# tooling. Safe to run again at any time (only changes what differs).
+#   deploy/ah-iac provision
+- name: AH Dashboard server
+  hosts: all
+  become: true
+  roles:
+    - base
+    - docker
+    - caddy
+    - app

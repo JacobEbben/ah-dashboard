@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}Privacy · AH Dashboard{% endblock %}
+{% block body %}
+{# The statement is written out in both languages; static/js/statement.js shows the
+   visitor's (Dutch without JavaScript). Short interface texts use data-i18n. #}
+<div class="wrap privacy" data-title-key="privacyLink">
+  <div class="privacyhead">
+    <a class="secondary authbtn" href="{{ url_for('web.index') }}" data-i18n="backToDashboard">Dashboard</a>
+    <div class="viewswitch" role="group" aria-label="Taal / Language">
+      <button type="button" class="viewbtn active" data-setlang="nl" aria-pressed="true">NL</button>
+      <button type="button" class="viewbtn" data-setlang="en" aria-pressed="false">EN</button>
+    </div>
+  </div>
+
+  {% if deleted %}
+  <p class="adminmsg ok" role="status" data-i18n="accountDeleted">Je account en alle gegevens die ervoor waren opgeslagen zijn verwijderd.</p>
+  {% endif %}
+
+  {% if me %}
+  <section class="admincard" id="mydata" aria-labelledby="mydataTitle">
+    <h2 id="mydataTitle" data-i18n="myDataTitle">Jouw gegevens</h2>
+    <p class="smeta" data-i18n="myDataIntro"></p>
+    <dl class="adminstatus">
+      <dt data-i18n="myEmail">E-mailadres</dt><dd>{{ me.email or '—' }}{% if me.is_admin %} <span class="badge-admin">admin</span>{% endif %}</dd>
+      <dt data-i18n="myGoogle">Google-account</dt>
+      <dd>{% if me.google %}<span data-i18n="googleLinked">gekoppeld</span>{% else %}<span data-i18n="googleNotLinked">niet gekoppeld</span>{% endif %}</dd>
+      <dt data-i18n="username">Gebruikersnaam</dt><dd>{{ me.username }}</dd>
+      <dt data-i18n="myCreated">Aangemaakt</dt><dd>{{ me.created_at | utc_time }}</dd>
+      <dt data-i18n="myLastLogin">Laatst ingelogd</dt><dd>{{ me.last_login | utc_time }}</dd>
+      <dt data-i18n="mySettings">Gesynchroniseerde instellingen</dt>
+      <dd>{% if me.settings %}<span class="mykeys">{{ me.settings | join(', ') }}</span>
+          <span class="smeta">· {{ (me.settings_bytes / 1024) | round(1) }} KB · {{ me.settings_updated | utc_time }}</span>
+          {% else %}—{% endif %}</dd>
+      <dt data-i18n="mySignIns">Actieve inlogsessies</dt><dd>{{ me.sign_ins }}</dd>
+    </dl>
+    {% if error in ('googleTaken', 'googleAlreadyLinked', 'googleFailed', 'loginLocked') %}<p class="adminmsg error" role="alert" data-i18n="{{ error }}"></p>{% endif %}
+    <p class="privacyactions">
+      <a class="secondary authbtn" href="{{ url_for('web.privacy_export') }}" download data-i18n="downloadData">Gegevens downloaden</a>
+      {% if google and not me.google %}
+      {# Accounts from before Google sign-in: link one now (web/google.py, purpose "link"). #}
+      <a class="googlebtn" href="{{ url_for('web.google_start', purpose='link') }}">{% include "partials/_google_logo.html" %}<span data-i18n="linkGoogle">Google-account koppelen</span></a>
+      {% endif %}
+    </p>
+
+    <h3 class="subhead" data-i18n="deleteAccountTitle">Account verwijderen</h3>
+    <p class="smeta" data-i18n="deleteIntro"></p>
+    {% if error and error not in ('googleTaken', 'googleAlreadyLinked', 'googleFailed', 'loginLocked') %}<p class="adminmsg error" role="alert" data-i18n="{{ error }}"></p>{% endif %}
+    <form method="post" action="{{ url_for('web.privacy_delete') }}" class="deleteform" autocomplete="off">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label for="delConfirmText" data-i18n="deleteType" data-n="{{ me.confirm_word }}">Typ {{ me.confirm_word }} ter bevestiging</label>
+      <input id="delConfirmText" name="confirm_text" type="text" required maxlength="320" autocomplete="off"
+             autocapitalize="none" spellcheck="false">
+      <span class="opt">
+        <input type="checkbox" id="delConfirm" name="confirm" value="yes" required class="check">
+        <label for="delConfirm" data-i18n="deleteConfirm"></label>
+      </span>
+      <button type="submit" class="danger" data-i18n="deleteButton">Account verwijderen</button>
+    </form>
+  </section>
+  {% endif %}
+
+  {# ------------------------------------------------------------------ Nederlands #}
+  <article class="admincard statement" lang="nl" data-lang="nl">
+    <h1>Privacyverklaring</h1>
+    <p class="smeta">AH Dashboard toont de Laatste Kans-koopjes van Albert Heijn-winkels en de Bonus van deze week.
+      Het is een onafhankelijke website en niet van of verbonden aan Albert Heijn. Zie ook de
+      <a href="{{ url_for('web.terms') }}">voorwaarden</a>.
+      {% if contact %}Vragen over privacy: <b>{{ contact }}</b>.{% else %}Vragen over privacy kun je stellen aan de beheerder van deze website.{% endif %}</p>
+
+    <h2>Zonder account</h2>
+    <ul>
+      <li><b>In je browser.</b> Je gekozen winkels, filters, voorinstellingen, leuk gevonden en verborgen producten,
+        taal, thema en weergave worden opgeslagen in je eigen browser (localStorage). Die gegevens blijven op je
+        apparaat; je wist ze via de instellingen van je browser (sitegegevens wissen).</li>
+      <li><b>Wat naar deze server gaat.</b> Om koopjes te tonen stuurt je browser de nummers van je gekozen winkels
+        naar deze server; bij het zoeken naar een winkel de postcode die je intypt. De server vraagt de gegevens op bij
+        Albert Heijn met een eigen AH-account: Albert Heijn krijgt bij die verzoeken niet jouw IP-adres of andere
+        gegevens over jou. Resultaten worden kort in het geheugen van de server bewaard (koopjes enkele minuten,
+        winkelzoekopdrachten een dag), niet gekoppeld aan jou.</li>
+      <li><b>AI-assistenten (MCP).</b> Via <code>/mcp</code> kan een AI-assistent (bijvoorbeeld Claude) dezelfde openbare
+        gegevens opvragen: winkels bij een postcode, koopjes en de Bonus. Zonder inloggen en zonder toegang tot accounts of
+        instellingen. Wat de assistent meestuurt (postcode, winkelnummers, zoekwoorden) wordt alleen gebruikt om te
+        antwoorden en niet opgeslagen; het IP-adres telt mee voor de limieten hieronder.</li>
+      <li><b>Productfoto's</b> laad je browser rechtstreeks van Albert Heijn (static.ah.nl). Albert Heijn ziet daardoor,
+        zoals bij elke website, je IP-adres en welke foto wordt opgevraagd. Er wordt geen verwijzende pagina meegestuurd.</li>
+      <li><b>IP-adres.</b> De server gebruikt je IP-adres (bij IPv6 alleen het /64-netwerk) in het geheugen om misbruik
+        te beperken: hoeveel verzoeken je doet en hoeveel inlogpogingen er zijn. Dit wordt niet in de database opgeslagen en
+        verdwijnt uiterlijk bij een herstart van de server.</li>
+      <li><b>Geen tracking.</b> Geen statistiek- of advertentiediensten, geen trackingcookies, geen scripts of
+        lettertypen van anderen.</li>
+    </ul>
+
+    <h2>Cookie</h2>
+    <p>Er is één functionele cookie (<code>ahb_admin</code>). Die wordt gezet als je begint met inloggen en bevat,
+      ondertekend, tijdens het inloggen bij Google een paar willekeurige controlewaarden, en daarna een willekeurig
+      nummer van je inlogsessie, je gebruikersnaam en een beveiligingstoken tegen vervalste formulieren. De cookie is
+      niet leesbaar voor scripts en wordt niet voor iets anders gebruikt.</p>
+
+    <h2>Inloggen met Google</h2>
+    <p>Inloggen is optioneel en dient alleen om je instellingen op je andere apparaten te gebruiken. Je logt in met je
+      Google-account; iedereen met een Google-account kan inloggen, en de eerste keer wordt je account aangemaakt.
+      Google ziet daardoor dat je inlogt op deze website; daarvoor geldt de privacyverklaring van Google. Deze website
+      vraagt Google alleen om je e-mailadres en het vaste nummer van je Google-account, en bewaart geen
+      Google-sleutels en geen wachtwoord.</p>
+
+    <h2>Met een account</h2>
+    <p>In de database van deze server staan dan:</p>
+    <ul>
+      <li>je e-mailadres, het nummer van je Google-account, een gebruikersnaam die van je e-mailadres is afgeleid,
+        wanneer het account is aangemaakt en wanneer je voor het laatst inlogde, en of je beheerder of geblokkeerd bent;</li>
+      <li>je gesynchroniseerde instellingen: winkels, filters, voorinstellingen, leuk gevonden en verborgen producten,
+        taal, thema, weergave en de Bonus-instellingen;</li>
+      <li>je actieve inlogsessies: een willekeurig nummer en het tijdstip van inloggen. Een sessie vervalt na
+        {{ user_session_days }} dagen of als je uitlogt.</li>
+    </ul>
+    <p>Dit blijft bewaard tot je je account verwijdert (hierboven, als je bent ingelogd) of de beheerder dat doet.
+      Verwijderen wist het account, je instellingen en je inlogsessies direct.</p>
+
+    <h2>Logboek</h2>
+    <p>Voor beveiliging en het oplossen van fouten schrijft de server berichten weg, zoals inloggen en mislukte
+      inlogpogingen (met gebruikersnaam en IP-adres) en fouten (met een referentienummer, zonder persoonsgegevens).
+      Het foutenlogboek heeft een beperkte omvang en overschrijft oude regels. Deze berichten kun je niet via deze
+      pagina verwijderen; vraag de beheerder ernaar.</p>
+
+    <h2>Jouw rechten</h2>
+    <p>Als je bent ingelogd kun je hierboven je gegevens bekijken en downloaden en je account verwijderen. Voor
+      correctie, vragen over het logboek of andere verzoeken neem je contact op met de beheerder{% if contact %} ({{ contact }}){% endif %}.</p>
+  </article>
+
+  {# --------------------------------------------------------------------- English #}
+  <article class="admincard statement" lang="en" data-lang="en" hidden>
+    <h1>Privacy statement</h1>
+    <p class="smeta">AH Dashboard shows the Last Chance bargains of Albert Heijn stores and this week's Bonus.
+      It is an independent website, not owned by or affiliated with Albert Heijn. See also the
+      <a href="{{ url_for('web.terms') }}">terms of use</a>.
+      {% if contact %}Questions about privacy: <b>{{ contact }}</b>.{% else %}Questions about privacy can go to the administrator of this website.{% endif %}</p>
+
+    <h2>Without an account</h2>
+    <ul>
+      <li><b>In your browser.</b> Your chosen stores, filters, presets, liked and hidden products, language, theme and
+        view are saved in your own browser (localStorage). They stay on your device; you clear them in your browser's
+        settings (clear site data).</li>
+      <li><b>What reaches this server.</b> To show bargains your browser sends the numbers of your chosen stores to this
+        server; a store search sends the postal code you type. The server fetches the data from Albert Heijn with its
+        own AH account: Albert Heijn does not get your IP address or anything else about you from those requests.
+        Results are kept briefly in the server's memory (bargains for minutes, store searches for a day), not linked
+        to you.</li>
+      <li><b>AI assistants (MCP).</b> Through <code>/mcp</code> an AI assistant (Claude, for example) can ask for the same
+        public data: stores near a postal code, bargains and the Bonus. No sign-in and no access to accounts or settings.
+        What the assistant sends (postal code, store numbers, search words) is only used to answer and is not stored; the
+        IP address counts towards the limits below.</li>
+      <li><b>Product photos</b> are loaded by your browser directly from Albert Heijn (static.ah.nl). Like any website,
+        Albert Heijn therefore sees your IP address and which photo is requested. No referring page is sent.</li>
+      <li><b>IP address.</b> The server uses your IP address (for IPv6 only the /64 network) in memory to limit abuse:
+        how many requests you make, and how many sign-in attempts there are. It is not stored in the database and is gone at the
+        latest when the server restarts.</li>
+      <li><b>No tracking.</b> No analytics or advertising services, no tracking cookies, no third-party scripts or
+        fonts.</li>
+    </ul>
+
+    <h2>Cookie</h2>
+    <p>There is one functional cookie (<code>ahb_admin</code>). It is set when you start signing in and holds, signed,
+      a few random check values while you sign in at Google, and after that a random number for your sign-in, your
+      username and a security token against forged forms. Scripts can't read it, and it is used for nothing else.</p>
+
+    <h2>Signing in with Google</h2>
+    <p>Signing in is optional and only serves to use your settings on your other devices. You sign in with your
+      Google account; anyone with a Google account can sign in, and the first time your account is created. Google
+      therefore sees that you sign in to this website; Google's privacy policy applies to that. This website only asks
+      Google for your e-mail address and your Google account's permanent number, and keeps no Google keys and no
+      password.</p>
+
+    <h2>With an account</h2>
+    <p>This server's database then holds:</p>
+    <ul>
+      <li>your e-mail address, your Google account's number, a username made from your e-mail address, when the
+        account was created and when you last signed in, and whether you are an administrator or disabled;</li>
+      <li>your synced settings: stores, filters, presets, liked and hidden products, language, theme, view and the
+        Bonus settings;</li>
+      <li>your active sign-ins: a random number and when you signed in. A sign-in expires after
+        {{ user_session_days }} days or when you sign out.</li>
+    </ul>
+    <p>This is kept until you delete your account (above, when signed in) or the administrator does. Deleting removes
+      the account, your settings and your sign-ins at once.</p>
+
+    <h2>Logs</h2>
+    <p>For security and to fix problems the server writes log messages, such as sign-ins and failed sign-ins (with
+      username and IP address) and errors (with a reference number, without personal data). The error log has a
+      limited size and overwrites old lines. You can't delete these messages on this page; ask the administrator.</p>
+
+    <h2>Your rights</h2>
+    <p>When signed in you can view and download your data and delete your account above. For corrections, questions
+      about the logs or other requests, contact the administrator{% if contact %} ({{ contact }}){% endif %}.</p>
+  </article>
+</div>
+{% endblock %}
+{% block scripts %}
+  <script type="module" src="{{ url_for('static', filename='js/statement.js') }}"></script>
+{% endblock %}

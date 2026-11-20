@@ -1,0 +1,39 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+logs/
+instance/
+node_modules/
+
+# Inventory written by the VPS simulation (deploy/tests/vps-sim.sh)
+deploy/ansible/inventory/sim/
+
+# ---- secrets: never commit, even when created here by accident -------------
+# Settings with the AH login, admin hash, Google secret, seal secret
+.env
+.env.*
+!.env.example
+# The SQLite database (users, settings, encrypted AH login) and the seal secret
+*.db
+*.db-wal
+*.db-shm
+token_seal.secret
+# Deployment: the vault password and SSH keys live in ~/.config/ah-dashboard,
+# never here. (vault.yml itself IS committed: it is encrypted.)
+vault-pass
+*vault-pass*
+deploy_key
+deploy_key.pub
+id_ed25519*
+id_rsa*
+# Keys and certificates
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+# Backups (database archives contain user data)
+*.tar.gz
+*.tgz
+# Claude Code's local settings (also in many global ignore files; not only there)
+.claude/settings.local.json

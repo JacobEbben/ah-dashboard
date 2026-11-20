@@ -1,0 +1,34 @@
+# Keep secrets, local state and dev files out of the image build context.
+.env
+.env.*
+!.env.example
+instance/
+logs/
+*.der
+*.pem
+*.enc
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+tests/
+requirements-dev.txt
+
+.git/
+.gitignore
+.dockerignore
+Dockerfile
+compose.yaml
+README.md
+node_modules/
+package.json
+package-lock.json
+jsconfig.json
+pyproject.toml
+
+# Deployment and CI code: not part of the app image (the inventory holds the
+# encrypted vault; keep it out of every build context).
+deploy/
+.github/
+ci/
+.gitleaks.toml

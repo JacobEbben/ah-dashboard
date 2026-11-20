@@ -1,0 +1,25 @@
+<div id="storePanel" class="filterpanel collapsed">
+  <button type="button" id="storeToggle" class="foldbtn" aria-expanded="false" aria-controls="storeBody">
+    <span class="chev">▾</span> <span data-i18n="stores"></span> <span id="storeCount" class="foldcount"></span>
+  </button>
+  <div id="storeBody" class="filters">
+    <div class="filterrow fullrow">
+      <label data-i18n="myStores"></label>
+      <div id="myStores" class="mystores"></div>
+    </div>
+    <div class="filterrow fullrow">
+      <label data-i18n="storeOverview"></label>
+      <div id="storeMetrics" class="storemetrics"></div>
+    </div>
+    <div class="filterrow fullrow">
+      <label for="storeQuery" data-i18n="findStore"></label>
+      <div class="preset-actions">
+        <input id="storeQuery" type="text" class="wide-input" data-i18n-ph="storeQueryPh" autocomplete="off">
+        <button type="button" id="storeSearchBtn" class="mini" data-i18n="search"></button>
+        <button type="button" id="storeClearBtn" class="mini" data-i18n="clear" data-i18n-title="clearTitle" hidden></button>
+      </div>
+      <div id="storeSearchStatus" class="smeta" aria-live="polite"></div>
+      <div id="storeResults" class="storeresults"></div>
+    </div>
+  </div>
+</div>

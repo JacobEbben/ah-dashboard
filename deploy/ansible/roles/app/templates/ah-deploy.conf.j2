@@ -1,0 +1,9 @@
+# {{ ansible_managed }} (deploy/ansible/roles/app). Read by /usr/local/bin/ah-deploy.
+IMAGE_REPO={{ image_repo | quote }}
+COMPOSE_DIR={{ app_dir | quote }}
+CONTAINER={{ app_container | quote }}
+VOLUME_INSTANCE={{ app_volume_instance | quote }}
+BACKUP_DIR={{ backup_dir | quote }}
+BACKUP_KEEP={{ backup_keep | int }}
+HEALTH_TIMEOUT={{ health_timeout | int }}
+PUBLIC_URL={{ ('https://' ~ domain) | quote }}

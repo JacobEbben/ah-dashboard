@@ -1,0 +1,18 @@
+# Example values for the deployment tests (deploy/tests/run.sh).
+domain: ah.example.nl
+tls_mode: letsencrypt
+acme_email: admin@example.nl
+redirect_www: true
+image_repo: 127.0.0.1:5055/ah-dashboard
+admin_ssh_keys:
+  - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleExampleExampleExampleExampleExampleEx admin@example
+ssh_harden: true
+deploy_ssh_key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDeployDeployDeployDeployDeployDeployDeployDe ci-deploy
+app_settings:
+  PRIVACY_CONTACT: privacy@example.nl
+  MCP_ENABLED: "true"
+# Fake secrets (in a real inventory these are in the encrypted vault.yml).
+vault_token_seal_secret: test-seal-secret-not-real-0123456789
+# TEST ONLY - NOT A REAL ADMIN HASH. It is the hash of the public throwaway
+# test password "test-password-not-real", used by deploy/tests only.
+vault_admin_password_hash: "scrypt:32768:8:1$hwg3T0Ns7Qld3vou$175fdb34cb8e9e9f4d77dfbd38815b89cc5afb85c7be2221e47d8e796929d85945dc9c069086b1375fc7486faa07cff93b2de1d5c3ff0dbcdd597d1af6ed4f99"

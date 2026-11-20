@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}AH Dashboard{% endblock %}</title>
+  <script src="{{ url_for('static', filename='js/theme-init.js') }}"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  {% block body %}{% endblock %}
+  {# On every page. Translated by the page's script where there is one (English otherwise). #}
+  <footer class="sitefooter">
+    <a href="{{ url_for('web.privacy') }}" data-i18n="privacyLink">Privacy statement</a>
+    <a href="{{ url_for('web.terms') }}" data-i18n="termsLink">Terms of use</a>
+  </footer>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

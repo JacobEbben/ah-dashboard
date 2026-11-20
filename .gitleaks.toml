@@ -1,0 +1,7 @@
+# Secret scanning (CI: .github/workflows/ci.yml): gitleaks' default rules, no
+# exceptions. Fake credentials in tests are deliberately obvious
+# ("12345678_not-a-real-access-token", "abcdef12-3456-4789-8abc-def123456789"),
+# so they don't look like secrets and need no allowlist. Keep it that way:
+# an allowlist entry is a place where a real secret could hide.
+[extend]
+useDefault = true

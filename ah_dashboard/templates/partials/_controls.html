@@ -1,0 +1,35 @@
+<div class="controls">
+  <h1 class="apptitle" data-i18n="title"></h1>
+  <div class="viewswitch" role="group" data-i18n-aria="viewSwitch">
+    <button type="button" class="viewbtn" data-view="bargains" data-i18n="viewBargains" aria-pressed="true"></button>
+    <button type="button" class="viewbtn" data-view="bonus" data-i18n="viewBonus" aria-pressed="false"></button>
+  </div>
+  <select id="lang" class="langsel" data-i18n-aria="language" data-i18n-title="language">
+    <option value="nl">NL</option>
+    <option value="en">EN</option>
+  </select>
+  <select id="theme" class="langsel" data-i18n-aria="theme" data-i18n-title="theme">
+    <option value="light" data-i18n="themeLight"></option>
+    <option value="dark" data-i18n="themeDark"></option>
+  </select>
+  {# Cards per row: Auto (fits the screen) until the slider is moved, then 1-8, capped to what fits (static/js/ui/density.js). #}
+  <div class="colsctl" role="group" data-i18n-aria="cardsPerRow">
+    <label for="colsRange" class="colslabel" data-i18n="perRow"></label>
+    <input type="range" id="colsRange" min="1" max="8" step="1" value="4" data-i18n-title="cardsPerRow">
+    <output id="colsValue" for="colsRange"></output>
+  </div>
+  <button id="go" type="button" data-i18n="refresh" data-i18n-title="refreshTitle"></button>
+  <button id="forceRefresh" type="button" class="secondary" data-i18n="forceRefresh" data-i18n-title="forceRefreshTitle" hidden></button>
+  {% if admin_link %}
+  <a class="secondary authbtn" href="{{ url_for('admin.index') }}" data-i18n="adminPanel" data-i18n-title="adminPanelTitle"></a>
+  {% endif %}
+  {% if user %}
+  <form class="userbox" method="post" action="{{ url_for('web.logout_post') }}">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <button type="submit" class="secondary authbtn" data-i18n="signOut"></button>
+  </form>
+  {% elif signin %}
+  {# Straight to Google (web/google.py); no sign-in page in between. #}
+  <a class="secondary authbtn googleauth" href="{{ url_for('web.google_start') }}" data-i18n-title="signInWhy">{% include "partials/_google_logo.html" %}<span data-i18n="signInGoogle"></span></a>
+  {% endif %}
+</div>

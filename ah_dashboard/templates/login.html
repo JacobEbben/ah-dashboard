@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}AH Dashboard{% endblock %}
+{% block body %}
+{# Only shown after a failed Google sign-in or without Google sign-in (web/routes.login); no form, so no cookie. #}
+<div class="wrap admin">
+  <div class="admincard narrow signin">
+    <h1 class="apptitle" data-i18n="title"></h1>
+    <h2 data-i18n="signIn"></h2>
+    <p class="smeta" data-i18n="signInWhy"></p>
+    {% if error %}<p class="adminmsg error" role="alert" data-i18n="{{ error }}"></p>{% endif %}
+    {% if google %}
+    <a class="googlebtn" href="{{ url_for('web.google_start') }}">
+      {% include "partials/_google_logo.html" %}
+      <span data-i18n="signInGoogle">Sign in with Google</span>
+    </a>
+    <p class="smeta" data-i18n="signInGoogleNote"></p>
+    {% else %}
+    <p class="adminmsg error" data-i18n="signInUnavailable"></p>
+    {% endif %}
+    <p class="smeta"><a href="{{ url_for('web.index') }}" data-i18n="continueWithout"></a></p>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+  <script type="module" src="{{ url_for('static', filename='js/login.js') }}"></script>
+{% endblock %}

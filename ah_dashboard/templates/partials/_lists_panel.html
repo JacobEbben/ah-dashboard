@@ -1,0 +1,26 @@
+{# Liked and hidden products: their own foldable panel. #}
+<div id="listsPanel" class="filterpanel collapsed">
+  <button type="button" id="listsToggle" class="foldbtn" aria-expanded="false" aria-controls="listsBody">
+    <span class="chev">▾</span> <span data-i18n="listsTitle"></span> <span id="listsSummary" class="foldcount"></span>
+  </button>
+  <div id="listsBody" class="filters">
+    <div class="filterrow fullrow hiddenrow">
+      <label><span data-i18n="hiddenProducts"></span> <span id="hiddenCount" class="foldcount"></span></label>
+      <div class="cat-actions">
+        <span class="opt">
+          <input type="checkbox" id="showHidden" class="check">
+          <label for="showHidden" class="inline-label" data-i18n="showHidden"></label>
+        </span>
+        <button type="button" id="clearHidden" class="mini" data-i18n="clearHidden" hidden></button>
+      </div>
+      <div id="hiddenList" class="hiddenlist"></div>
+    </div>
+    <div class="filterrow fullrow likedrow">
+      <label><span data-i18n="likedProducts"></span> <span id="likedCount" class="foldcount"></span></label>
+      <div class="cat-actions">
+        <button type="button" id="clearLiked" class="mini" data-i18n="clearLiked" hidden></button>
+      </div>
+      <div id="likedList" class="hiddenlist"></div>
+    </div>
+  </div>
+</div>

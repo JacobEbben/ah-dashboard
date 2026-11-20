@@ -1,0 +1,9 @@
+# ansible-lint settings (deploy/tests/run.sh, CI). The inventory holds an
+# encrypted vault and example values, not playbooks.
+exclude_paths:
+  - inventory/
+offline: true
+skip_list:
+  # domain, tls_mode, image_repo, edge_network, ... are shared settings that
+  # several roles read and you set in the inventory; a role prefix would hide that.
+  - var-naming[no-role-prefix]

@@ -1,0 +1,77 @@
+// @ts-check
+// Safe localStorage wrapper: per-browser conveniences only. Every access is
+// guarded because storage can be unavailable (private mode, blocked cookies).
+// Keys must never change: renaming one wipes every visitor's settings.
+// ALL localStorage access goes through this module (it tells the settings sync).
+
+export const KEYS = {
+  settings: 'ah_settings',
+  presets: 'ah_presets',
+  presetOrder: 'ah_preset_order',  // preset names in the user's own order
+  stores: 'ah_stores',
+  lang: 'ah_lang',
+  view: 'ah_view',                // 'bargains' | 'bonus'
+  bonusCat: 'ah_bonus_cat',       // selected Bonus category
+  bonusFilters: 'ah_bonus_filters',  // Bonus view: {types, minSave, sort}
+  bonusFiltersFolded: 'ah_bonus_filters_folded',
+  bonusGroups: 'ah_bonus_groups',  // Bonus category groups [{id, name, cats}]
+  bonusGroupsFolded: 'ah_bonus_groups_folded',
+  bonusNoticeSeen: 'ah_bonus_notice',  // start date of the Bonus week whose "liked on Bonus" notice was closed
+  theme: 'ah_theme',              // 'dark' (absent = light, the default)
+  filtersFolded: 'ah_filters_folded',
+  storesFolded: 'ah_stores_folded',
+  listsFolded: 'ah_lists_folded',     // "Liked & hidden products" panel
+  blacklist: 'ah_blacklist',      // hidden products [{key, title}]
+  liked: 'ah_liked',              // liked products [{key, title}]
+  showHidden: 'ah_show_hidden',   // "Show hidden products" toggle
+  cols: 'ah_cols',                // cards per row, '1'..'8' (absent = auto); per browser, not synced
+};
+
+// Listeners told about every change (the settings sync uses this).
+/** @type {((key: string) => void)[]} */
+const listeners = [];
+/** @param {(key: string) => void} fn */
+export function onStorageChange(fn) { listeners.push(fn); }
+/** @param {string} key */
+function changed(key) { for (const fn of listeners) { try { fn(key); } catch (e) { /* ignore */ } } }
+
+export const storage = {
+  /** @param {string} key @returns {string|null} */
+  get(key) {
+    try { return localStorage.getItem(key); } catch (e) { return null; }
+  },
+  // Listeners only hear about real changes (the app rewrites some values with
+  // the same content on start; that must not trigger a settings upload).
+  /** @param {string} key @param {string} value */
+  set(key, value) {
+    if (this.get(key) === String(value)) return;
+    try { localStorage.setItem(key, value); } catch (e) { /* ignore */ }
+    changed(key);
+  },
+  /** @param {string} key */
+  remove(key) {
+    if (this.get(key) === null) return;
+    try { localStorage.removeItem(key); } catch (e) { /* ignore */ }
+    changed(key);
+  },
+  // Bookkeeping that must not count as a settings change (e.g. the sync's
+  // own state): written without telling the listeners.
+  /** @param {string} key @param {string} value */
+  setQuiet(key, value) {
+    try { localStorage.setItem(key, value); } catch (e) { /* ignore */ }
+  },
+  /**
+   * @param {string} key
+   * @param {any} [fallback]
+   * @returns {any}
+   */
+  getJSON(key, fallback = null) {
+    const raw = this.get(key);
+    if (raw === null) return fallback;
+    try { return JSON.parse(raw); } catch (e) { return fallback; }
+  },
+  /** @param {string} key @param {unknown} value */
+  setJSON(key, value) {
+    this.set(key, JSON.stringify(value));
+  },
+};

@@ -1,0 +1,9 @@
+---
+# Tests only (deploy/tests/render.yml): render this role's templates into
+# render_dir with the role's defaults and the inventory, nothing else.
+- name: Render the Caddy templates
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "{{ render_dir }}/caddy-{{ item }}"
+    mode: "0644"
+  loop: [Caddyfile, compose.yaml]

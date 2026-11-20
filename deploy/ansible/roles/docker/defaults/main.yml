@@ -1,0 +1,15 @@
+---
+# Container logs: Docker's "local" driver with rotation (never fills the disk).
+docker_log_max_size: 10m
+docker_log_max_files: 3
+docker_daemon_config:
+  log-driver: local
+  log-opts:
+    max-size: "{{ docker_log_max_size }}"
+    max-file: "{{ docker_log_max_files | string }}"
+  live-restore: true      # containers keep running while Docker itself is upgraded
+# Private image registry login (e.g. a private GHCR package). Leave the token
+# empty when the image is public. Stored in the vault (vault_registry_*).
+registry_host: ghcr.io
+registry_user: "{{ vault_registry_user | default('') }}"
+registry_token: "{{ vault_registry_token | default('') }}"

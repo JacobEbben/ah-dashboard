@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Errors · Admin · AH Dashboard{% endblock %}
+{% block body %}
+{# The error log, read back (ah_dashboard/errorlog.py): one entry by its reference, or the latest ones. #}
+<div class="wrap admin">
+  <div class="adminhead">
+    <h1>Error log</h1>
+    <div class="adminheadactions">
+      <a class="secondary authbtn" href="{{ url_for('admin.index') }}#errors">Back to admin</a>
+    </div>
+  </div>
+
+  <div class="admincard">
+    {% if not enabled %}
+      <p class="smeta">The error log is off (<code>ERROR_LOG_FILE</code> is empty), so references can't be looked up.</p>
+    {% else %}
+    <form method="get" action="{{ url_for('admin.errors') }}" autocomplete="off" class="errsearch">
+      <label for="ref">Reference</label>
+      <input id="ref" name="ref" maxlength="200" spellcheck="false" placeholder="3f9c0a1b2d" value="{{ query }}">
+      <button type="submit">Look up</button>
+    </form>
+    {% endif %}
+  </div>
+
+  {% if enabled %}
+    {% if query and not ref %}
+      <p class="adminmsg error">That is not a reference: a reference is 10 characters, 0-9 and a-f (e.g. 3f9c0a1b2d).</p>
+    {% elif ref and not found %}
+      <p class="adminmsg error">No entry with reference {{ ref }}. The error log has a limited size, so old entries
+        are overwritten; or the reference was mistyped.</p>
+    {% endif %}
+
+    {% set shown = [found] if found else latest %}
+    {% if not query %}
+      <p class="smeta">The latest {{ limit }} errors and warnings, newest first (server time).
+        {% if not latest %}The error log is empty.{% endif %}</p>
+    {% endif %}
+    {% for e in shown %}
+    <div class="admincard errentry">
+      <div class="errhead">
+        <span class="{{ 'bad' if e.level in ('ERROR', 'CRITICAL') else 'warn' }}">{{ e.level }}</span>
+        <span>{{ e.time }}</span>
+        <span class="smeta">{{ e.source }}</span>
+        {% if e.ref %}<a class="errref" href="{{ url_for('admin.errors', ref=e.ref) }}"><code>ref {{ e.ref }}</code></a>{% endif %}
+      </div>
+      <p class="errmsg">{{ e.message }}</p>
+      {% if e.detail %}<pre class="errdetail">{{ e.detail | join('\n') }}</pre>{% endif %}
+    </div>
+    {% endfor %}
+  {% endif %}
+</div>
+{% endblock %}

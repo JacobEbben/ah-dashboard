@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Forced command of the CI deploy key (authorized_keys: restrict,command="...").
+# Whatever the client asks for arrives in SSH_ORIGINAL_COMMAND; only these
+# commands pass, and ah-deploy checks the image again (it must be the
+# configured repository, by digest).
+#
+#   ssh ah-deploy@server deploy ghcr.io/owner/ah-dashboard@sha256:<64 hex>
+#   ssh ah-deploy@server status
+#   ssh ah-deploy@server rollback
+set -euo pipefail
+
+SUDO="${AH_DEPLOY_SUDO:-sudo}"          # tests replace sudo
+DEPLOY="${AH_DEPLOY_BIN:-/usr/local/bin/ah-deploy}"
+
+read -r -a args <<< "${SSH_ORIGINAL_COMMAND:-}"
+usage() { echo "allowed: deploy <image>@sha256:<digest> | status | rollback" >&2; exit 2; }
+
+case "${args[0]:-}" in
+  deploy)
+    [[ ${#args[@]} -eq 2 && "${args[1]}" =~ ^[a-z0-9][a-z0-9._/:-]*@sha256:[0-9a-f]{64}$ ]] || usage ;;
+  status|rollback)
+    [[ ${#args[@]} -eq 1 ]] || usage ;;
+  *) usage ;;
+esac
+
+exec "$SUDO" -n "$DEPLOY" "${args[@]}"

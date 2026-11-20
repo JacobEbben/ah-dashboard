@@ -1,0 +1,29 @@
+---
+# Caddy, pinned by digest (update: docker pull caddy:<version>-alpine and copy
+# the digest from `docker image inspect`; run `deploy/ah-iac check`).
+caddy_image: "caddy:2.11.7-alpine@sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5"
+caddy_dir: /opt/caddy
+caddy_container: caddy
+caddy_compose_project: caddy
+# The Docker network Caddy and the app share. The app publishes no port: only
+# containers on this network can reach it (that makes TRUSTED_PROXY=* safe).
+edge_network: edge
+
+# --- the site and its certificate ------------------------------------------------
+# domain:      the dashboard's address, e.g. ah.example.nl (DNS A/AAAA -> this server)
+# acme_email:  Let's Encrypt account e-mail (expiry warnings, account recovery)
+# tls_mode:    letsencrypt          real certificates (default)
+#              letsencrypt-staging  Let's Encrypt's test CA: untrusted certificates,
+#                                   but no rate limits; use it for a first try
+#              internal             Caddy's own CA (no public DNS needed; browsers
+#                                   warn): local tests and private servers
+domain: ""
+acme_email: ""
+tls_mode: letsencrypt
+# Also answer on www.<domain> and redirect it to <domain> (needs its own DNS record).
+redirect_www: false
+# The app's address on the edge network.
+app_upstream: "ah-dashboard:8733"
+# Published ports (change only for tests).
+caddy_http_port: 80
+caddy_https_port: 443

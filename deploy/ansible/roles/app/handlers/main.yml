@@ -1,0 +1,6 @@
+---
+# Recreates the current image with the new settings (stop first: one process).
+- name: Restart app
+  ansible.builtin.command:
+    cmd: /usr/local/bin/ah-deploy restart
+  changed_when: true

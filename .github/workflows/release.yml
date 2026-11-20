@@ -1,0 +1,111 @@
+# main: checks -> build the image once -> smoke test + scan -> push to GHCR
+# -> deploy to the VPS over the restricted deploy key (environment "production").
+# The server's ah-deploy backs up the database, switches the image (old one
+# stopped first: one process) and rolls back by itself when unhealthy.
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Never two releases at once; never cancel a deploy halfway.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    name: Build, test and push the image
+    needs: checks
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.push.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: >
+          docker build -t ah-dashboard:ci
+          --label org.opencontainers.image.revision=${{ github.sha }}
+          --label org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }} .
+
+      - name: Smoke test (production-like, no AH login)
+        run: bash deploy/tests/smoke-image.sh ah-dashboard:ci
+
+      - name: Vulnerability scan (fixable critical issues fail the release)
+        run: >
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.76.1
+          image --quiet --exit-code 1 --severity CRITICAL --ignore-unfixed ah-dashboard:ci
+
+      - name: Push to GitHub Container Registry
+        id: push
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          repo="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/ah-dashboard"
+          echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker tag ah-dashboard:ci "$repo:sha-$GITHUB_SHA"
+          docker tag ah-dashboard:ci "$repo:main"
+          docker push -q "$repo:sha-$GITHUB_SHA"
+          docker push -q "$repo:main"
+          image="$(docker inspect --format '{{index .RepoDigests 0}}' "$repo:sha-$GITHUB_SHA")"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          echo "Pushed $image" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    name: Deploy to the VPS
+    needs: build
+    if: vars.DEPLOY_HOST != ''
+    runs-on: ubuntu-24.04
+    environment:
+      name: production
+      url: https://${{ vars.DOMAIN }}
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4      # for the server's known host keys
+
+      - name: Check the image repository
+        env:
+          IMAGE: ${{ needs.build.outputs.image }}
+          IMAGE_REPO: ${{ vars.IMAGE_REPO }}
+        run: |
+          [[ "$IMAGE" == "$IMAGE_REPO@sha256:"* ]] || {
+            echo "::error::Built $IMAGE, but the server only accepts $IMAGE_REPO (vars.IMAGE_REPO / image_repo in the inventory)."
+            exit 1; }
+
+      - name: Deploy (backup, switch, health check, rollback on failure)
+        env:
+          IMAGE: ${{ needs.build.outputs.image }}
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          key="$RUNNER_TEMP/deploy_key"
+          install -m 600 /dev/null "$key"
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$key"
+          ssh -i "$key" -p "$DEPLOY_PORT" -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile=deploy/ansible/inventory/production/known_hosts \
+            "ah-deploy@$DEPLOY_HOST" "deploy $IMAGE"
+
+      - name: Public health check through Caddy
+        env:
+          DOMAIN: ${{ vars.DOMAIN }}
+        run: curl -fsS --retry 10 --retry-delay 3 --retry-all-errors -o /dev/null "https://$DOMAIN/healthz"
+
+      - name: Summary
+        env:
+          IMAGE: ${{ needs.build.outputs.image }}
+          DOMAIN: ${{ vars.DOMAIN }}
+        run: echo "Deployed \`$IMAGE\` to https://$DOMAIN" >> "$GITHUB_STEP_SUMMARY"

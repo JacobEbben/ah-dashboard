@@ -1,0 +1,25 @@
+---
+# Day-to-day operations on the server:
+#   deploy/ah-iac status | rollback | backup | restart
+- name: AH Dashboard operations
+  hosts: all
+  become: true
+  gather_facts: false
+  vars:
+    ah_command: status
+  tasks:
+    - name: Check the command
+      ansible.builtin.assert:
+        that:
+          - ah_command in ['status', 'rollback', 'backup', 'restart']
+        quiet: true
+
+    - name: "Run ah-deploy {{ ah_command }}"
+      ansible.builtin.command:
+        cmd: /usr/local/bin/ah-deploy {{ ah_command }}
+      register: result
+      changed_when: ah_command != 'status'
+
+    - name: Result
+      ansible.builtin.debug:
+        msg: "{{ result.stdout_lines + result.stderr_lines }}"

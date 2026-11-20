@@ -1,0 +1,61 @@
+---
+- name: Check the Caddy settings
+  ansible.builtin.assert:
+    that:
+      - domain is match('^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$')
+      - tls_mode in ['letsencrypt', 'letsencrypt-staging', 'internal']
+      - tls_mode == 'internal' or acme_email is match('^[^@\s]+@[^@\s]+\.[^@\s]+$')
+    fail_msg: "Set domain (lower case, e.g. ah.example.nl), tls_mode and, for Let's Encrypt, acme_email (ah-iac configure)."
+    quiet: true
+
+- name: Caddy folders
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ caddy_dir }}"
+    - "{{ caddy_dir }}/conf"
+
+# IPv6 on the network: without it, Docker forwards IPv6 visitors through its
+# userland proxy and Caddy sees them all as ONE address (the gateway), so they
+# would share one rate limit and lockout. With it, their real addresses arrive.
+# (An existing network keeps its settings: `docker network rm` it to change.)
+- name: Shared network for Caddy and the app (IPv4 + IPv6)
+  ansible.builtin.shell:
+    cmd: >-
+      docker network inspect {{ edge_network | quote }} >/dev/null 2>&1
+      || { docker network create --ipv6 {{ edge_network | quote }} >/dev/null && echo created; }
+  register: edge
+  changed_when: "'created' in edge.stdout"
+
+- name: Caddy Compose file
+  ansible.builtin.template:
+    src: compose.yaml.j2
+    dest: "{{ caddy_dir }}/compose.yaml"
+    owner: root
+    group: root
+    mode: "0644"
+  register: caddy_compose
+
+# The folder is mounted (not the file): a file mount keeps showing the old file
+# after Ansible replaces it, so a reload would read the old configuration.
+- name: Caddyfile (checked with `caddy validate` before it replaces the old one)
+  ansible.builtin.template:
+    src: Caddyfile.j2
+    dest: "{{ caddy_dir }}/conf/Caddyfile"
+    owner: root
+    group: root
+    mode: "0644"
+    validate: >-
+      docker run --rm --network none -v %s:/etc/caddy/Caddyfile:ro {{ caddy_image }}
+      caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+  notify: Reload caddy
+
+- name: Caddy is running
+  ansible.builtin.command:
+    cmd: docker compose --project-directory {{ caddy_dir }} up -d --remove-orphans
+  register: caddy_up
+  changed_when: "'Started' in caddy_up.stderr or 'Recreated' in caddy_up.stderr or 'Created' in caddy_up.stderr"
