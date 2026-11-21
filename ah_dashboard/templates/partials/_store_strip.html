@@ -1,10 +1,12 @@
 {# The followed stores as one segmented bar (one colour dot each), as wide as its stores. Tap one =
    "I'm in this store": only its bargains, shown highlighted with a ✕, until tapped again, 2 hours or
-   midnight. The bar itself stays, so nothing below moves. ＋ opens the Stores panel
+   midnight. The bar itself stays, so nothing below moves. Its last part, ＋, opens the Stores panel
    (static/js/bargains/stores.js). #}
 <div class="storestrip">
   <div class="chiprow storerow" id="storeRow">
-    <div id="storeChips" class="segmented storeseg" role="group" data-i18n-aria="stores"></div>
-    <button type="button" id="storeManageBtn" class="chipicon" aria-controls="storeBody" data-i18n-aria="manageStores" data-i18n-title="manageStores">＋</button>
+    <div class="segmented storeseg">
+      <div id="storeChips" class="segparts" role="group" data-i18n-aria="stores"></div>
+      <button type="button" id="storeManageBtn" class="segbtn segadd" aria-controls="storeBody" data-i18n-aria="manageStores" data-i18n-title="manageStores">＋</button>
+    </div>
   </div>
 </div>

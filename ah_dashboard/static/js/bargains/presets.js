@@ -13,7 +13,7 @@ import { t } from '../core/i18n.js';
 import { KEYS, storage } from '../core/storage.js';
 import { onRenameGesture, startRename } from '../ui/rename.js';
 import { makeReorderable } from '../ui/reorder.js';
-import { applyCats, catsSetting, sameCats } from './filters.js';
+import { applyCats, catsSetting, openFilterPanel, sameCats } from './filters.js';
 
 /** @typedef {import('./filters.js').Settings} Settings */
 /** @typedef {Record<string, Settings>} Presets */
@@ -193,6 +193,12 @@ function deletePreset() {
 }
 
 export function initPresets() {
+  // ＋ at the end of the presets bar: open the Filters panel at the new preset's name.
+  $('presetAddBtn').addEventListener('click', () => {
+    openFilterPanel();
+    $('presetName').focus({ preventScroll: true });
+    $('filterPanel').scrollIntoView({ block: 'nearest' });
+  });
   $('presetSel').addEventListener('change', (/** @type {any} */ e) => {
     updatePresetButtons();
     const s = loadPresets()[e.target.value];

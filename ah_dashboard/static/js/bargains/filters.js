@@ -179,13 +179,17 @@ export function setFilterPanelVisible(visible) {
   $('typesSection').hidden = !visible;
 }
 
+/** @type {(folded: boolean) => void} */
+let setFiltersFolded = () => {};
+export function openFilterPanel() { setFiltersFolded(false); }
+
 /** @param {() => Offer[]} getItems the loaded bargains */
 export function initFilters(getItems) {
   items = getItems;
   // A fold-out panel; opening it folds the other panels (core/dom.makeFoldable). Remembered per browser.
-  const setFolded = makeFoldable($('filterPanel'), $('filterToggle'),
+  setFiltersFolded = makeFoldable($('filterPanel'), $('filterToggle'),
     folded => storage.set(KEYS.filtersFolded, folded ? '1' : '0'));
-  setFolded(storage.get(KEYS.filtersFolded) !== '0');
+  setFiltersFolded(storage.get(KEYS.filtersFolded) !== '0');
 
   // Restore remembered settings.
   const saved = storage.getJSON(KEYS.settings);

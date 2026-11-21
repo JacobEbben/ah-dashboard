@@ -255,7 +255,7 @@ export function initStores() {
   stores = loadStores();
   setStoresFolded = makeFoldable($('storePanel'), $('storeToggle'),
     folded => storage.set(KEYS.storesFolded, folded ? '1' : '0'));
-  // ＋ after the store chips: open the Stores panel at the postal-code search.
+  // ＋ at the end of the store bar: open the Stores panel at the postal-code search.
   $('storeManageBtn').addEventListener('click', () => {
     openStoresPanel();
     $('storeQuery').focus({ preventScroll: true });

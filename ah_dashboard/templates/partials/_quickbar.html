@@ -10,7 +10,11 @@
 </div>
 <div class="quickbar chipstrip">
   {# Presets: "All types" plus the saved product-type selections (drag to reorder, double-click to rename). #}
-  <div id="presetBar" class="presetbar segmented presetseg" role="group" data-i18n-aria="presets"></div>
+  {# Its last part, ＋, opens the Filters panel at "save as preset". #}
+  <div class="segmented presetseg">
+    <div id="presetBar" class="presetbar segparts" role="group" data-i18n-aria="presets"></div>
+    <button type="button" id="presetAddBtn" class="segbtn segadd" aria-controls="filterBody" data-i18n-aria="addPreset" data-i18n-title="addPreset">＋</button>
+  </div>
   {# Screen readers: "Moved preset X to position 2 of 4" after Alt+arrow keys. #}
   <span id="presetLive" class="sronly" aria-live="polite"></span>
 </div>
