@@ -1,5 +1,6 @@
 {# The bargains' quick switches: the minimum discount (one tap, always visible), then the presets
-   (named product-type selections) in a row that scrolls sideways on phones
+   (named product-type selections) as a segmented bar like the discount one, as wide as its presets
+   (it grows with each saved preset and scrolls sideways when wider than the page)
    (static/js/bargains/filters.js, presets.js). #}
 <div id="minDisc" class="segmented discseg" role="group" data-i18n-aria="minDisc">
   <button type="button" class="segbtn" data-disc="0" data-i18n="all" aria-pressed="true"></button>
@@ -9,7 +10,7 @@
 </div>
 <div class="quickbar chipstrip">
   {# Presets: "All types" plus the saved product-type selections (drag to reorder, double-click to rename). #}
-  <div id="presetBar" class="presetbar" role="group" data-i18n-aria="presets"></div>
+  <div id="presetBar" class="presetbar segmented presetseg" role="group" data-i18n-aria="presets"></div>
   {# Screen readers: "Moved preset X to position 2 of 4" after Alt+arrow keys. #}
   <span id="presetLive" class="sronly" aria-live="polite"></span>
 </div>

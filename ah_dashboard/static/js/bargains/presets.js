@@ -94,7 +94,7 @@ function renderPresetBar(p) {
 
   const all = document.createElement('button');
   all.type = 'button';
-  all.className = 'presetbtn builtin';
+  all.className = 'segbtn presetbtn builtin';
   all.dataset.builtin = 'all';
   all.dataset.i18n = 'presetAll';
   all.dataset.i18nTitle = 'presetAllTitle';
@@ -106,18 +106,10 @@ function renderPresetBar(p) {
     applyCats(BUILTIN_ALL);
   });
   bar.appendChild(all);
-  // Vertical line between "All types" and the saved presets.
-  if (names.length) {
-    const sep = document.createElement('span');
-    sep.className = 'quicksep';
-    sep.setAttribute('aria-hidden', 'true');
-    bar.appendChild(sep);
-  }
-
   for (const name of names) {
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'presetbtn movable';
+    b.className = 'segbtn presetbtn movable';
     b.dataset.preset = name;
     b.textContent = name;
     b.title = t('presetMoveHint');
