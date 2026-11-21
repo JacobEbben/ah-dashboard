@@ -64,6 +64,10 @@ class Services:
         """This week's Bonus from the shared copy (loaded when needed)."""
         return self.bonus_cache.get(self.load_bonus_week)
 
+    def refresh_bonus_week(self) -> BonusWeek:
+        """Reload this week's Bonus from AH now (admin only: ~160 paced AH requests)."""
+        return self.bonus_cache.refresh(self.load_bonus_week)
+
     def find_stores(self, postcode: str) -> list[Store]:
         """AH's stores near a (normalized) postal code, cached per postal code.
         Stores AH lists exist, so their bargains may be loaded (LoadGuard)."""

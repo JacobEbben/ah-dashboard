@@ -8,7 +8,7 @@ The server calls AH with ONE operator-configured AH login; visitors need no acco
 
 ## Commands (Docker only; no local venv/Node)
 
-Checks run in throwaway containers with the repo mounted read-only. `ci/check.sh` is what CI runs; all of these must stay green (519 pytest tests + ruff + mypy; 30 node tests at time of writing).
+Checks run in throwaway containers with the repo mounted read-only. `ci/check.sh` is what CI runs; all of these must stay green (522 pytest tests + ruff + mypy; 30 node tests at time of writing).
 
 ```bash
 docker compose up -d --build                                            # run on 127.0.0.1:8733, settings from .env
@@ -56,7 +56,7 @@ blueprints api/ web/ admin/ mcp/  →  auth/  →  services/  →  ah/  →  dom
 - Code reaches services via `container.services()` (`services(app)` in tests).
 - Read settings from the typed groups `services().settings.{ah,cache,limits,auth,app}`, not from `app.config`.
 - `Services` has `settings, db, users, sessions, tokens, ah, scheduler, rate_limiter, admin_limiter, google, known_stores, bargains_cache, stores_cache, bonus_cache`.
-- Shared logic lives on `Services` and is used by both `/api` and `/mcp`: `gateway` (property), `load_bonus_week()`, `bonus_week()`, `find_stores(postcode)`, `bargains(stores, client)` (`client=None` = admin force refresh, unbudgeted).
+- Shared logic lives on `Services` and is used by both `/api` and `/mcp`: `gateway` (property), `load_bonus_week()`, `bonus_week()`, `find_stores(postcode)`, `bargains(stores, client)` (`client=None` = admin force refresh, unbudgeted), `refresh_bonus_week()` (admin force refresh of the Bonus, `POST /api/bonus/force`; the header's Force refresh button acts on the current view).
 
 ### Module map
 - `domain/`

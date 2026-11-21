@@ -163,6 +163,7 @@ The environment is parsed like each default (one pair of surrounding quotes is r
 | `GET /api/stores?postcode=` | everyone | `{stores, postcode}`; rate-limited (`stores`). |
 | `POST /api/bargains` | everyone | body `{"stores": [{"id", "name"}]}` → `{items, storeErrors}`; rate-limited and budgeted. |
 | `POST /api/bargains/force` | admin + `X-CSRF-Token` | Reloads from AH now. Not budgeted. |
+| `POST /api/bonus/force` | admin + `X-CSRF-Token` | Reloads this week's Bonus from AH now (~160 paced requests, a minute or two); a failed or worse load keeps the current copy. |
 | `GET /api/bonus` | everyone | `{period, categories, items, errors}`. |
 | `GET /api/session` | everyone | `{"admin": bool, "csrf"?}`. |
 | `GET/PUT /api/prefs` | signed-in user (`PUT` needs `X-CSRF-Token`) | Synced settings. |

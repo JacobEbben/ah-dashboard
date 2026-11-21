@@ -211,3 +211,51 @@ def test_failed_group_lookups_make_the_week_partial():
     week = bonus_service.load_bonus(AHGateway(FakeSession(groups={"9": AHTransportError("HTTP 500", 500)}),
                                               "AHWEBSHOP"))
     assert week.groups_failed == 1 and not week.complete and week.errors == []
+
+
+# ---- the admin's force refresh of the Bonus ---------------------------------------------------
+def _bonus_app():
+    app = create_app("testing")
+    services(app).ah = FakeSession()
+    return app
+
+
+def _meta_calls(app):
+    return len([c for c in services(app).ah.calls if c[0] == BONUS_METADATA_PATH])
+
+
+def test_admin_force_refresh_reloads_the_bonus_from_ah():
+    from conftest import as_admin
+    app = _bonus_app()
+    c = app.test_client()
+    c.get("/api/bonus")
+    c.get("/api/bonus")
+    assert _meta_calls(app) == 1                         # cached
+    r = c.post("/api/bonus/force", headers=as_admin(c))
+    assert r.status_code == 200 and len(r.get_json()["items"]) == 4
+    assert _meta_calls(app) == 2                         # reloaded despite the fresh copy
+
+
+def test_bonus_force_refresh_needs_an_admin_and_the_csrf_token():
+    from conftest import as_admin, sign_in
+    app = _bonus_app()
+    c = app.test_client()
+    assert c.post("/api/bonus/force").status_code == 401                    # anonymous
+    services(app).users.create("alice", "alice@example.com")
+    sign_in(c)
+    assert c.post("/api/bonus/force").status_code == 401                    # a normal user
+    as_admin(c)
+    assert c.post("/api/bonus/force").status_code == 403                    # admin without CSRF
+    assert c.post("/api/bonus/force", headers={"X-CSRF-Token": "wrong"}).status_code == 403
+    assert c.get("/api/bonus/force").status_code == 405
+    assert _meta_calls(app) == 0                         # none of these reached AH
+
+
+def test_failed_force_refresh_keeps_the_current_copy():
+    from conftest import as_admin
+    app = _bonus_app()
+    c = app.test_client()
+    before = c.get("/api/bonus").get_json()
+    services(app).ah.fail = {"meta"}
+    assert c.post("/api/bonus/force", headers=as_admin(c)).status_code == 502
+    assert c.get("/api/bonus").get_json() == before

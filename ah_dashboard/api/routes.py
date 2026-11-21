@@ -94,6 +94,16 @@ def bonus():
     return jsonify(services().bonus_week().to_json())
 
 
+@bp.post("/bonus/force")
+@require_admin_api
+@ah_required
+def bonus_force():
+    """Reload this week's Bonus from AH now. Admin only: ~160 AH requests with
+    the server's login (paced, so it takes a minute or two). Not rate limited
+    per client, like the bargains' force refresh."""
+    return jsonify(services().refresh_bonus_week().to_json())
+
+
 @bp.get("/prefs")
 @require_user_api
 def get_prefs(user):

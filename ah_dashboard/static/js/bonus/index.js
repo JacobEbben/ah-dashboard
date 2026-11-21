@@ -10,7 +10,7 @@
 //
 // Events: emits EV.bonusStatus (bargain cards' Bonus tag, "Bonus"
 // filter); listens to EV.needBonus, EV.lists, EV.cols, EV.lang.
-import { api, errorText } from '../core/api.js';
+import { api, ApiError, errorText } from '../core/api.js';
 import { $, html } from '../core/dom.js';
 import { emit, on, EV } from '../core/events.js';
 import { euro, fmtDate, searchTerms, fold } from '../core/format.js';
@@ -312,14 +312,20 @@ function announceStatus(status) {
  * ``quiet``: in the background for the bargain cards' Bonus tag (no status
  * text, no busy button; a failure is retried when the Bonus view is shown).
  */
-export async function loadBonus({ force = false, quiet = false } = {}) {
+export async function loadBonus({ force = false, quiet = false, fromAh = /** @type {string|null} */ (null),
+  onAdminLost = () => {} } = {}) {
   if (loading) return loading;
-  if (!needsFetch(data, force)) { if (!quiet) renderBonus(); return; }
-  if (!quiet) { setStatus(t('loading'), false, true); $('go').disabled = true; }
+  if (!fromAh && !needsFetch(data, force)) { if (!quiet) renderBonus(); return; }
+  const buttons = [$('go'), $('forceRefresh')];
+  if (!quiet) {
+    setStatus(t(fromAh ? 'bonusForceLoading' : 'loading'), false, true);
+    buttons.forEach(b => { b.disabled = true; });
+  }
   if (!data) announceStatus('loading');
   loading = (async () => {
     try {
-      data = /** @type {BonusWeek} */ (await api.fetchBonus());
+      // fromAh: the admin's CSRF token; the server reloads the week from AH first.
+      data = /** @type {BonusWeek} */ (await (fromAh ? api.forceFetchBonus(fromAh) : api.fetchBonus()));
       const errs = Array.isArray(data.errors) ? data.errors : [];
       if (errs.length) {
         const refs = errs.map(e => e.ref).filter(Boolean).slice(0, 3).join(', ');
@@ -331,9 +337,11 @@ export async function loadBonus({ force = false, quiet = false } = {}) {
       announceStatus('ready');
     } catch (err) {
       if (!quiet) setStatus(errorText(err), true);
+      // Admin session ended (expired / logged out elsewhere): hide the button.
+      if (fromAh && err instanceof ApiError && (err.code === 'admin_required' || err.code === 'csrf_invalid')) onAdminLost();
       if (!data) announceStatus('failed');   // the bargains' Bonus filter can't apply: they say so
     } finally {
-      if (!quiet) $('go').disabled = false;
+      if (!quiet) buttons.forEach(b => { b.disabled = false; });
       loading = null;
     }
   })();

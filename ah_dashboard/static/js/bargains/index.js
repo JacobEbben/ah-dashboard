@@ -126,8 +126,11 @@ export async function loadBargains({ force = false } = {}) {
   }
 }
 
+/** The admin session's CSRF token, or null without an admin session (main.js: the Bonus force refresh). */
+export const adminCsrf = () => (admin ? admin.csrf : null);
+
 /** Force refresh is admin-only: show the button only with an admin session. @param {{csrf: string}|null} value */
-function setAdmin(value) {
+export function setAdmin(value) {
   admin = value;
   $('forceRefresh').hidden = !admin;
 }
@@ -159,7 +162,6 @@ export function initBargains() {
   setAdmin(null);                // hidden until /api/session confirms an admin login
   // Older versions kept the visitor's AH token in the browser; it is no longer used.
   storage.remove('ah_token');
-  $('forceRefresh').addEventListener('click', () => loadBargains({ force: true }));
 
   on(EV.refilter, (/** @type {{clearFocus?: boolean}|undefined} */ d) => {
     if (d && d.clearFocus) clearFocus();

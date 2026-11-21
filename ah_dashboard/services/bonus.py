@@ -204,6 +204,20 @@ class WeekCache:
             self._set(week, self._clock(), new=True)
             return week
 
+    def refresh(self, loader: Loader) -> BonusWeek:
+        """Load the week from AH now, however fresh the copy is (the admin's force
+        refresh). A failure raises and keeps the current copy; a partial load
+        that is worse than this week's copy keeps that copy too (and returns it)."""
+        with self._lock:
+            entry = self._entry
+            week = loader()
+            if not week.complete and entry is not None and self._current_week(entry[0]) \
+                    and _worse(week, entry[0]):
+                log.warning("forced Bonus reload was worse than the current copy; keeping the copy")
+                return entry[0]
+            self._set(week, self._clock(), new=True)
+            return week
+
     def status(self) -> dict:
         """For the admin panel (counts and dates only)."""
         entry = self._entry

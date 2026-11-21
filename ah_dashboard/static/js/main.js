@@ -13,7 +13,7 @@
 import { $ } from './core/dom.js';
 import { emit, EV } from './core/events.js';
 import { applyStaticI18n, getLang, setLang } from './core/i18n.js';
-import { hasStores, initBargains, loadBargains } from './bargains/index.js';
+import { adminCsrf, hasStores, initBargains, loadBargains, setAdmin } from './bargains/index.js';
 import { initBonus, loadBonus } from './bonus/index.js';
 import { initBlacklist } from './lists/blacklist.js';
 import { initLikes, likedCount } from './lists/likes.js';
@@ -45,6 +45,10 @@ function start() {
   initBonus();
   // Refresh reloads whichever view is shown.
   $('go').addEventListener('click', () => (currentView() === 'bonus' ? loadBonus({ force: true }) : loadBargains()));
+  // Force refresh (admins only): reload the current view's data from AH, bypassing the server's cache.
+  $('forceRefresh').addEventListener('click', () => (currentView() === 'bonus'
+    ? loadBonus({ fromAh: adminCsrf(), onAdminLost: () => setAdmin(null) })
+    : loadBargains({ force: true })));
   initViewSwitch({ bonus: () => loadBonus() });   // loads the Bonus when first shown
 
   // Load the saved stores straight away (the server has its own AH login).

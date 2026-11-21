@@ -62,6 +62,8 @@ export const api = {
     request('/api/bargains/force', { method: 'POST', body: { stores }, csrf }),
   /** This week's national Bonus: {period, categories, items, errors}. */
   fetchBonus: () => request('/api/bonus'),
+  /** Reload this week's Bonus from AH now. Admin only: needs the session's CSRF token. @param {string} csrf */
+  forceFetchBonus: csrf => request('/api/bonus/force', { method: 'POST', csrf }),
   /** {admin: bool, csrf?: string} for the current browser session. */
   session: () => request('/api/session'),
 };

@@ -538,8 +538,6 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
   color: var(--muted); box-shadow: none; }
 .viewswitch .viewbtn:hover { color: var(--ink); }
 .viewswitch .viewbtn.active { background: var(--accent); color: var(--on-accent); }
-/* Force refresh is for the bargains cache only */
-:root[data-view="bonus"] #forceRefresh { display: none !important; }
 
 /* Bonus cards: deal text in the pennant, old price struck through */
 .badge.mech { white-space: normal; font-size: calc(13px * var(--cs)); line-height: 1.2; max-width: calc(100% - 10px * var(--cs)); }
