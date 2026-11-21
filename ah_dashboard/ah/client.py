@@ -26,6 +26,21 @@ class AHTransportError(AHError):
         self.status = status
 
 
+class AHThrottled(AHTransportError):
+    """AH (its CDN) refuses us for sending too much: HTTP 429, or HTTP 403 with
+    the CDN's "Access Denied" page (seen after ~160 quick GraphQL requests:
+    ``<H1>Access Denied</H1> ... Reference #0.…``). Not about the token: the
+    session pauses all AH requests for a while instead of renewing or retrying."""
+
+
+def throttle_error(status: int, body: str, label: str) -> AHThrottled | None:
+    """The throttling error for this HTTP failure, or None if it is another failure."""
+    if status == 429 or (status == 403 and "Access Denied" in body[:2000]):
+        log.warning("AH refuses requests (HTTP %s for %s): too many requests", status, label)
+        return AHThrottled(f"HTTP {status} for {label}: AH refuses requests (rate limited)", status)
+    return None
+
+
 class AHGraphQLError(AHError):
     """AH answered, but with GraphQL ``errors`` (validation, auth, ...).
 
@@ -117,6 +132,8 @@ class AHClient:
                 body = decode_body(resp.read(), resp.headers)
         except urllib.error.HTTPError as exc:
             body = decode_body(exc.read(), exc.headers)
+            if (throttled := throttle_error(exc.code, body, label)) is not None:
+                raise throttled from None
             log.warning("AH HTTP %s for %s", exc.code, label)
             raise AHTransportError(f"HTTP {exc.code} for {label}: {body[:300]}", exc.code) from None
         except urllib.error.URLError as exc:
@@ -162,6 +179,8 @@ class AHClient:
                 body = decode_body(resp.read(), resp.headers)
         except urllib.error.HTTPError as exc:
             body = decode_body(exc.read(), exc.headers)
+            if (throttled := throttle_error(exc.code, body, operation or "query")) is not None:
+                raise throttled from None
             # GraphQL validation errors arrive as HTTP 400 with {"errors": [...]}.
             parsed = _try_json(body)
             if isinstance(parsed, dict) and parsed.get("errors"):

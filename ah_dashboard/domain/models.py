@@ -135,7 +135,102 @@ class BonusWeek:
     categories: list[str]
     items: list[Offer]
     errors: list[CategoryError] = field(default_factory=list)   # categories that failed to load
+    groups_failed: int = 0     # group deals whose products could not be looked up (not sent to the page)
+
+    @property
+    def complete(self) -> bool:
+        return not self.errors and not self.groups_failed
 
     def to_json(self) -> dict[str, Any]:
         return {"period": self.period.to_json(), "categories": list(self.categories),
                 "items": [o.to_json() for o in self.items], "errors": [e.to_json() for e in self.errors]}
+
+    def to_stored(self) -> dict[str, Any]:
+        """The form kept in the database (services/bonus.BonusStore): the page's form plus the gaps."""
+        return {**self.to_json(), "groupsFailed": self.groups_failed}
+
+
+# ---- reading a stored BonusWeek back (our own to_stored() output) ----------------------------
+# Strict: anything of an unexpected type means the copy is not used (the week is then
+# loaded from AH again), so a damaged or older row can never reach the page.
+_DEAL_TYPES = {"percent", "amount", "fixed", "multi", "other"}
+
+
+def _text(v: Any, *, required: bool = False) -> str | None:
+    if v is None and not required:
+        return None
+    if not isinstance(v, str):
+        raise ValueError("text expected")
+    return v
+
+
+def _num(v: Any) -> float | None:
+    if v is None:
+        return None
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or v != v or v in (float("inf"), float("-inf")):
+        raise ValueError("number expected")
+    return float(v)
+
+
+def _int(v: Any) -> int | None:
+    if v is None:
+        return None
+    if isinstance(v, bool) or not isinstance(v, int):
+        raise ValueError("integer expected")
+    return v
+
+
+def _list(v: Any) -> list:
+    if not isinstance(v, list):
+        raise ValueError("list expected")
+    return v
+
+
+def _stored_offer(o: Any) -> Offer:
+    if not isinstance(o, dict) or o.get("kind") != "bonus":
+        raise ValueError("bonus offer expected")
+    deal = o.get("dealType")
+    if deal not in _DEAL_TYPES:
+        raise ValueError("deal type")
+    products = []
+    for p in _list(o.get("products", [])):
+        if not isinstance(p, dict):
+            raise ValueError("product expected")
+        pid, title = _int(p.get("id")), _text(p.get("title"), required=True)
+        if pid is None or title is None:
+            raise ValueError("product")
+        products.append(GroupMember(pid, title))
+    price_from, is_group = o.get("priceFrom"), o.get("isGroup")
+    if not isinstance(price_from, bool) or not isinstance(is_group, bool):
+        raise ValueError("flag expected")
+    return Offer(
+        kind="bonus", id=_int(o.get("id")), title=_text(o.get("title")), brand=_text(o.get("brand")),
+        unit_size=_text(o.get("unitSize")), image=_text(o.get("image")), category=_text(o.get("category")),
+        price_now=_num(o.get("priceNow")), price_was=_num(o.get("priceWas")),
+        bonus=BonusInfo(deal_type=str(deal), mechanism=_text(o.get("mechanism")) or "",
+                        min_qty=_int(o.get("minQty")), price_from=price_from,
+                        product_count=_int(o.get("productCount")), is_group=is_group, products=products))
+
+
+def bonus_week_from_stored(data: Any) -> BonusWeek | None:
+    """The BonusWeek written by ``to_stored()``, or None when ``data`` is not exactly that."""
+    try:
+        if not isinstance(data, dict) or not isinstance(data.get("period"), dict):
+            raise ValueError("week expected")
+        period = Period(_text(data["period"].get("start")), _text(data["period"].get("end")))
+        categories = [c for c in _list(data.get("categories")) if _text(c, required=True)]
+        items = [_stored_offer(o) for o in _list(data.get("items"))]
+        errors = []
+        for e in _list(data.get("errors")):
+            if not isinstance(e, dict):
+                raise ValueError("error expected")
+            errors.append(CategoryError(str(_text(e.get("category"), required=True)),
+                                        str(_text(e.get("code"), required=True)),
+                                        str(_text(e.get("ref"), required=True))))
+        groups_failed = _int(data.get("groupsFailed", 0)) or 0
+        if groups_failed < 0:
+            raise ValueError("groupsFailed")
+        return BonusWeek(period=period, categories=categories, items=items, errors=errors,
+                         groups_failed=groups_failed)
+    except (ValueError, KeyError, TypeError):
+        return None

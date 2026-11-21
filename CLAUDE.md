@@ -8,7 +8,7 @@ The server calls AH with ONE operator-configured AH login; visitors need no acco
 
 ## Commands (Docker only; no local venv/Node)
 
-Checks run in throwaway containers with the repo mounted read-only. `ci/check.sh` is what CI runs; all of these must stay green (507 pytest tests + ruff + mypy; 30 node tests at time of writing).
+Checks run in throwaway containers with the repo mounted read-only. `ci/check.sh` is what CI runs; all of these must stay green (519 pytest tests + ruff + mypy; 30 node tests at time of writing).
 
 ```bash
 docker compose up -d --build                                            # run on 127.0.0.1:8733, settings from .env
@@ -65,14 +65,14 @@ blueprints api/ web/ admin/ mcp/  →  auth/  →  services/  →  ah/  →  dom
   - `dates.py`: `amsterdam_today`, Dutch DST computed without tzdata.
 - `ah/`
   - `client.py`: urllib, `query()` POST + `get()` REST; no redirects; http/https handlers only; env proxies ignored; gzip handled.
-  - `session.py`: `AHSession` adds the token; on an auth failure it renews once and retries; a semaphore caps requests at `AH_MAX_CONCURRENT`; keeps stats.
+  - `session.py`: `AHSession` adds the token; on an auth failure it renews once and retries; a semaphore caps requests at `AH_MAX_CONCURRENT`; a `Pacer` (token bucket) lets them start at `AH_RATE_PER_SECOND` with bursts of `AH_RATE_BURST`; after `AHThrottled` (HTTP 429, or 403 with AH's CDN "Access Denied" page, see `client.throttle_error`) every request fails at once for `AH_THROTTLE_PAUSE_SECONDS` without contacting AH and the page gets 503 `ah_busy`; keeps stats.
   - `auth.py`: `TokenManager`, `TokenStore` (Fernet blob `ah_tokens` in table `secrets`), `token_kind`, `login_code`, `clean_pasted`.
   - `gateway.py`: `AHGateway`, the only place with AH paths and parameters.
   - `queries.py`: the GraphQL documents.
   - `mapping.py`: AH JSON → domain; `guarded()`, `AHDataError`.
 - `services/`
   - `bargains.py`: `fetch_bargains`, `LoadGuard`, `StoreRefused`, `cache_error`.
-  - `bonus.py`: `load_bonus`, `WeekCache`, `prewarm_job`.
+  - `bonus.py`: `load_bonus`, `WeekCache`, `BonusStore` (the week in table `bonus_week`, read back strictly via `domain/models.bonus_week_from_stored`), `prewarm_job`.
   - `stores.py`: `KnownStores`, `normalize_postcode`.
   - `cache.py`: `TTLCache`, single-flight, stale-while-revalidate, remembered errors.
 - `auth/`
@@ -197,7 +197,7 @@ Plain ES modules with no build step. `main.js` is the composition root. Allowed 
 - **Bargain prices** (`bargainPrice.priceNow/priceWas`) arrive as **text** ("1.09"); `mapping.money_text` converts them. Fakes should send text too.
 - **Bonus prices**: the REST pages have no `currentPrice`. The price is computed from `priceBeforeBonus` + `discountLabels` (`domain/pricing.bonus_price`, half-up cents).
   - Group deals come without products; `bonusPromotions(id)` fills `products` (webshop ids, max `MAX_GROUP_PRODUCTS=200`).
-  - A Bonus load is ~300 AH requests: keep it in `WeekCache`. The cache keeps a copy until `bonusEndDate` (Dutch date), retries partial loads after `BONUS_RETRY_SECONDS`, and keeps this week's copy on failure.
+  - A Bonus load is ~300 AH requests: keep it in `WeekCache`. The cache keeps a copy until `bonusEndDate` (Dutch date), retries partial loads after `BONUS_RETRY_SECONDS`, and keeps this week's copy on failure. Failed group lookups (`groups_failed`) also make a week partial. The copy is stored in the database, so redeploys don't reload it from AH (AH's CDN blocked the login after the ~160-request burst of each redeploy).
 - **Store search** accepts only a postal code (`StoresFilterInput.postalCode`, limit 25).
 - appie-go (github.com/gwillem/appie-go) is cited in comments as the reference for endpoints.
 

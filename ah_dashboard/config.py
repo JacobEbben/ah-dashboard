@@ -47,6 +47,13 @@ class BaseConfig:
     # Upper limit on AH requests in flight at once for the whole server (all
     # visitors and loads together), so the shared AH login is never flooded.
     AH_MAX_CONCURRENT = 8
+    # How fast AH requests may start (whole server): AH_RATE_PER_SECOND on
+    # average, with bursts of up to AH_RATE_BURST. AH's CDN blocks the login
+    # ("Access Denied") after a quick burst of ~160 requests. 0 = no pacing.
+    AH_RATE_PER_SECOND = 2.0
+    AH_RATE_BURST = 10
+    # After AH refuses us (HTTP 429, or 403 "Access Denied"): no AH requests at all for this long.
+    AH_THROTTLE_PAUSE_SECONDS = 900
 
     # --- Rate limits per client (see ratelimit.py) ------------------------------
     # N requests per window; 0 switches a limit off. Behind a reverse proxy set
@@ -190,6 +197,7 @@ class TestingConfig(BaseConfig):
     TOKEN_SEAL_SECRET = "test-seal-secret-not-for-production"
     DATABASE_FILE = ""             # in-memory database
     BONUS_PREWARM = False          # no background threads in tests
+    AH_RATE_PER_SECOND = 0         # no pacing (tests never contact AH)
     BACKGROUND_JOBS = False
     BARGAINS_STALE_SECONDS = 0     # no background refreshes in app tests (unit-tested in test_cache)
     # Rate limits off by default; tests of the limits switch them on.
@@ -319,6 +327,9 @@ class AHSettings:
     refresh_cooldown: int
     max_concurrent: int
     max_workers: int
+    rate_per_second: float
+    rate_burst: int
+    throttle_pause: int
 
     @property
     def rest_headers(self) -> dict[str, str]:
@@ -411,7 +422,8 @@ class Settings:
                 client_id=c["AH_CLIENT_ID"], client_version=c["AH_CLIENT_VERSION"],
                 access_token=c["AH_ACCESS_TOKEN"] or None, refresh_token=c["AH_REFRESH_TOKEN"] or None,
                 refresh_cooldown=int(c["AH_REFRESH_COOLDOWN"]), max_concurrent=int(c["AH_MAX_CONCURRENT"]),
-                max_workers=int(c["MAX_WORKERS"])),
+                max_workers=int(c["MAX_WORKERS"]), rate_per_second=float(c["AH_RATE_PER_SECOND"]),
+                rate_burst=int(c["AH_RATE_BURST"]), throttle_pause=int(c["AH_THROTTLE_PAUSE_SECONDS"])),
             cache=CacheSettings(
                 bargains_ttl=int(c["BARGAINS_CACHE_TTL"]), bargains_max_stores=int(c["BARGAINS_CACHE_MAX_STORES"]),
                 bargains_stale=int(c["BARGAINS_STALE_SECONDS"]), store_error_ttl=int(c["STORE_ERROR_TTL"]),

@@ -54,12 +54,15 @@
       <dd>{{ health.ah.requests }} since start · {% if health.ah.failures %}<span class="bad">{{ health.ah.failures }} failed</span>{% else %}<span class="good">none failed</span>{% endif %}</dd>
       <dt>Last success</dt><dd>{{ health.ah.last_ok | admin_time }}</dd>
       <dt>Last failure</dt><dd>{{ health.ah.last_failure | admin_time }}</dd>
+      <dt>Refused by AH</dt>
+      <dd>{% if health.ah.paused_seconds %}<span class="bad">paused: no AH requests for {{ health.ah.paused_seconds }} s more</span> · {% endif %}{{ health.ah.throttled or 0 }} time(s) since start</dd>
       {% endif %}
       <dt>Bonus</dt>
       <dd>{% if health.bonus.loaded %}
           {{ health.bonus.offers }} offers · {{ health.bonus.period.start or '?' }} – {{ health.bonus.period.end or '?' }}
           {% if not health.bonus.current_week %}<span class="bad">· not this week</span>{% endif %}
           {% if health.bonus.failed_categories %}<span class="bad">· {{ health.bonus.failed_categories }} categories failed</span>{% endif %}
+          {% if health.bonus.failed_groups %}<span class="bad">· {{ health.bonus.failed_groups }} group deals without products</span>{% endif %}
           · loaded {{ health.bonus.loaded_at | admin_time }}
         {% else %}not loaded yet{% endif %}
         · background loading {{ 'on' if health.bonus.background else 'off' }}</dd>

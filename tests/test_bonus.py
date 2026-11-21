@@ -416,11 +416,13 @@ def test_unknown_deal_type_uses_ahs_own_bonus_price():
     assert (item["priceNow"], item["priceWas"]) == (1.50, 2.00)
 
 
-def test_failed_group_lookup_keeps_card_and_does_not_mark_partial():
+def test_failed_group_lookup_keeps_card_and_is_retried_later():
     labels = [{"code": "DISCOUNT_PERCENTAGE", "percentage": 25}]
     item, _, result = _load_group(labels, "25% KORTING", AHTransportError("HTTP 500", 500))
     assert (item["priceNow"], item["priceWas"], item["title"]) == (None, None, "Alle Groep")
-    assert result["errors"] == []      # only this card lacks a price; the result is still cached
+    # Only this card lacks a price (no category error for the page), but the week
+    # counts as partial (groups_failed), so WeekCache loads it again after a while.
+    assert result["errors"] == []
 
 
 @pytest.mark.parametrize("answer", [{}, {"bonusPromotions": None}, {"bonusPromotions": [{"products": "x"}]},

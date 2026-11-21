@@ -199,8 +199,13 @@ release() {
 
 phase "6. Release v1: build, smoke test, Trivy, push; deploy over the CI key"
 V1="$(release v1)"
-docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.76.1 image --quiet --exit-code 1 \
-  --severity CRITICAL --ignore-unfixed ahsim-app:v1 >/dev/null || fail "Trivy found fixable critical issues"
+# As in release.yml: Trivy (pinned by digest) scans a saved copy, read-only, without the Docker socket.
+docker save ahsim-app:v1 -o "$SIM/image.tar"
+docker run --rm -v "$SIM/image.tar:/image.tar:ro" \
+  aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c \
+  image --quiet --exit-code 1 --severity CRITICAL --ignore-unfixed --input /image.tar >/dev/null \
+  || fail "Trivy found fixable critical issues"
+rm -f "$SIM/image.tar"
 pass "built, smoke-tested, scanned and pushed: ${V1##*@}"
 ci_ssh "deploy $V1" > "$SIM/deploy1.log" 2>&1 || { cat "$SIM/deploy1.log"; fail "deploy v1"; }
 [[ "$(app_health)" == healthy ]] || fail "app not healthy after deploy"

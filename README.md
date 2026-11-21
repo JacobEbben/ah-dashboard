@@ -98,6 +98,9 @@ The environment is parsed like each default (one pair of surrounding quotes is r
 | `AH_USER_AGENT` | unset | **Leave unset.** A custom User-Agent made AH fail GraphQL queries ("Subgraph errors redacted"). |
 | `AH_TIMEOUT` | `20` | Seconds per AH request. |
 | `AH_MAX_CONCURRENT` | `8` | AH requests in flight for the whole server. |
+| `AH_RATE_PER_SECOND` | `2` | AH requests that may start per second on average (whole server); `0` = no pacing. |
+| `AH_RATE_BURST` | `10` | AH requests that may start at once before pacing applies. |
+| `AH_THROTTLE_PAUSE_SECONDS` | `900` | After AH refuses us (HTTP 429 or 403 "Access Denied"), no AH requests at all for this long. |
 | `MAX_STORES` / `MAX_WORKERS` | `25` / `6` | Stores per bargains request / parallel loads per request. |
 
 **Caches and load budgets**
@@ -188,7 +191,9 @@ The endpoint is anonymous and never reads the session cookie. A request from a b
   - Every endpoint that can reach AH is rate-limited per client and cached.
   - Store loads from AH (cache misses) are budgeted per client and server-wide (`services/bargains.LoadGuard`).
   - Store ids that are not known to exist fall under a much smaller budget. A store becomes known when it appears in a store search or turns out to have bargains (table `known_stores`).
-  - At most `AH_MAX_CONCURRENT` AH requests run at once.
+  - At most `AH_MAX_CONCURRENT` AH requests run at once, and they start at `AH_RATE_PER_SECOND` (bursts of `AH_RATE_BURST`): AH's CDN blocks the login after a quick burst of ~160 requests.
+  - When AH refuses us anyway, all AH requests stop for `AH_THROTTLE_PAUSE_SECONDS`; visitors get "AH is busy" (`ah_busy`).
+  - The Bonus week is also kept in the database, so a restart or redeploy doesn't load it from AH again.
   - Limits count per **client key**: the IPv4 address, or the IPv6 **/64** network (`ratelimit.limit_key`).
 - **AH client hardening** (`ah/client.py`): only http/https handlers, redirects are never followed (the bearer token would leak), and proxy settings from the environment are ignored. The upstream URLs must be https.
 - **Untrusted AH data**: every field from AH goes through `ah/mapping.py`, which whitelists and validates it. Odd values become `None`, and anything unexpected becomes `AHDataError`, which fails only that store or category.

@@ -5,7 +5,9 @@ bonus.go): the bonus metadata lists the week's period and categories; each
 category's section lists its products and bonus groups. A load is ~300 AH
 requests (one per category, one per group deal), so one shared copy is kept
 for the whole week (:class:`WeekCache`) and loaded in the background
-(:func:`prewarm_job`).
+(:func:`prewarm_job`). The copy is also kept in the database
+(:class:`BonusStore`), so a restart or redeploy reuses it instead of sending
+the whole load to AH again (AH's CDN blocks such bursts, see ah/session.py).
 
 Group deals ("Alle Bonduelle") come without products or prices. Their
 products are looked up with GraphQL ``bonusPromotions(id)`` (appie-go's
@@ -17,6 +19,7 @@ stand for its products.
 
 from __future__ import annotations
 
+import json
 import logging
 import threading
 import time
@@ -29,7 +32,7 @@ from ..ah.auth import AHAuthError
 from ..ah.client import AHError
 from ..ah.gateway import AHGateway
 from ..domain.dates import amsterdam_today
-from ..domain.models import BonusWeek, CategoryError, Offer, Period
+from ..domain.models import BonusWeek, CategoryError, Offer, Period, bonus_week_from_stored
 from ..logging_setup import log_error
 
 log = logging.getLogger(__name__)
@@ -61,16 +64,18 @@ def load_bonus(gateway: AHGateway, today: date | None = None, max_workers: int =
                 items.extend(found)
                 if error:
                     errors.append(error)
-    _fill_groups(gateway, items, period, max_workers)
-    return BonusWeek(period=period, categories=categories, items=items, errors=errors)
+    groups_failed = _fill_groups(gateway, items, period, max_workers)
+    return BonusWeek(period=period, categories=categories, items=items, errors=errors,
+                     groups_failed=groups_failed)
 
 
-def _fill_groups(gateway: AHGateway, items: list[Offer], period: Period, max_workers: int) -> None:
+def _fill_groups(gateway: AHGateway, items: list[Offer], period: Period, max_workers: int) -> int:
     """Look up the products of each group deal and fill in its prices.
-    A failed lookup only leaves that card without prices."""
+    A failed lookup only leaves that card without prices (the week then counts
+    as partial and is loaded again later). Returns the number of failed lookups."""
     groups = [it for it in items if it.bonus and it.bonus.is_group and it.bonus.segment]
     if not groups or not period.start or not period.end:
-        return
+        return 0
     start, end = period.start, period.end
 
     def run(offer: Offer):
@@ -91,6 +96,39 @@ def _fill_groups(gateway: AHGateway, items: list[Offer], period: Period, max_wor
     if failed:
         log_error(log, "bonus group lookup failed for %d of %d groups, e.g. %s: %s",
                   len(failed), len(groups), failed[0][0], failed[0][1])
+    return len(failed)
+
+
+class BonusStore:
+    """The cached week in the database (one row, table ``bonus_week``), so it
+    survives restarts and redeploys. Public AH data only, no user data. A row
+    that can't be read is ignored (the week is then loaded from AH)."""
+
+    def __init__(self, db):
+        self._db = db
+
+    def load(self) -> tuple[BonusWeek, float] | None:
+        try:
+            row = self._db.one("SELECT data, loaded_at FROM bonus_week WHERE id = 1")
+            if row is None:
+                return None
+            week = bonus_week_from_stored(json.loads(row["data"]))
+        except Exception:   # a damaged row must not stop the app: load from AH instead
+            log.warning("stored Bonus week could not be read; it will be loaded from AH", exc_info=True)
+            return None
+        return (week, float(row["loaded_at"])) if week is not None else None
+
+    def save(self, week: BonusWeek, loaded_at: float) -> None:
+        try:
+            self._db.execute(
+                "INSERT INTO bonus_week (id, data, loaded_at) VALUES (1, ?, ?) "
+                "ON CONFLICT(id) DO UPDATE SET data = excluded.data, loaded_at = excluded.loaded_at",
+                (json.dumps(week.to_stored(), separators=(",", ":")), loaded_at))
+        except Exception:   # only the copy for the next start is lost
+            log_error(log, "could not store the Bonus week", exc_info=True)
+
+    def clear(self) -> None:
+        self._db.execute("DELETE FROM bonus_week")
 
 
 class WeekCache:
@@ -110,12 +148,19 @@ class WeekCache:
     """
 
     def __init__(self, retry_seconds: float = 300, clock: Callable[[], float] = time.time,
-                 today: Callable[[], date] = amsterdam_today):
+                 today: Callable[[], date] = amsterdam_today, store: BonusStore | None = None):
         self.retry_seconds = retry_seconds
         self._clock = clock
         self._today = today
-        self._entry: tuple[BonusWeek, float] | None = None   # (week, loaded at)
+        self._store = store
+        # (week, loaded at; wall-clock time, so a stored copy keeps its age across restarts)
+        self._entry: tuple[BonusWeek, float] | None = store.load() if store is not None else None
         self._lock = threading.Lock()
+
+    def _set(self, week: BonusWeek, loaded_at: float, *, new: bool) -> None:
+        self._entry = (week, loaded_at)
+        if new and self._store is not None:
+            self._store.save(week, loaded_at)
 
     def _current_week(self, week: BonusWeek) -> bool:
         try:
@@ -127,7 +172,7 @@ class WeekCache:
     def _fresh(self, entry: tuple[BonusWeek, float]) -> bool:
         week, loaded_at = entry
         recent = self._clock() - loaded_at < self.retry_seconds
-        if week.errors:
+        if not week.complete:
             return recent
         return self._current_week(week) or recent
 
@@ -148,15 +193,15 @@ class WeekCache:
                 # Any failure (AHError, or a bug): keep this week's copy if we have one.
                 if entry is not None and self._current_week(entry[0]):
                     # Keep this week's copy; try again after retry_seconds.
-                    self._entry = (entry[0], self._clock())
+                    self._set(entry[0], self._clock(), new=False)
                     return entry[0]
                 raise                # nothing usable: the request fails
-            if week.errors and entry is not None and self._current_week(entry[0]) \
-                    and len(entry[0].items) > len(week.items):
+            if not week.complete and entry is not None and self._current_week(entry[0]) \
+                    and _worse(week, entry[0]):
                 # A worse partial load than what we have: keep the better copy.
-                self._entry = (entry[0], self._clock())
+                self._set(entry[0], self._clock(), new=False)
                 return entry[0]
-            self._entry = (week, self._clock())
+            self._set(week, self._clock(), new=True)
             return week
 
     def status(self) -> dict:
@@ -171,11 +216,20 @@ class WeekCache:
             "period": week.period.to_json(),
             "offers": len(week.items),
             "failed_categories": len(week.errors),
+            "failed_groups": week.groups_failed,
             "current_week": self._current_week(week),
         }
 
     def clear(self) -> None:
         self._entry = None
+        if self._store is not None:
+            self._store.clear()
+
+
+def _worse(new: BonusWeek, old: BonusWeek) -> bool:
+    """A partial load that is worse than the copy we have: fewer offers, or more gaps."""
+    return len(old.items) > len(new.items) or \
+        len(old.errors) + old.groups_failed < len(new.errors) + new.groups_failed
 
 
 def prewarm_job(cache: WeekCache, loader: Loader, ready: Callable[[], bool]) -> Callable[[], float | None]:

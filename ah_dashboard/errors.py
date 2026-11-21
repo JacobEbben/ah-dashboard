@@ -10,6 +10,8 @@ them propagate.
 
 - ``AHAuthError`` (the server's AH login itself is gone; an admin must log in
   again) -> 503 ``ah_auth_failed``;
+- ``AHThrottled`` (AH refuses us for sending too much; requests are paused)
+  -> 503 ``ah_busy``;
 - any other ``AHError`` (AH down, unexpected answer) -> 502 ``upstream_error``.
 """
 
@@ -21,7 +23,7 @@ from flask import Flask, jsonify, request
 from werkzeug.exceptions import HTTPException
 
 from .ah.auth import AHAuthError
-from .ah.client import AHError
+from .ah.client import AHError, AHThrottled
 from .logging_setup import log_error
 
 log = logging.getLogger(__name__)
@@ -54,6 +56,9 @@ def register(app: Flask) -> None:
         if isinstance(exc, AHAuthError):
             ref = log_error(log, "%s %s: AH login failed: %s", request.method, request.path, exc)
             return error_response("ah_auth_failed", "The server's AH login does not work anymore.", 503, ref)
+        if isinstance(exc, AHThrottled):
+            ref = log_error(log, "%s %s: AH requests paused: %s", request.method, request.path, exc)
+            return error_response("ah_busy", "AH is busy. Please try again in a few minutes.", 503, ref)
         ref = log_error(log, "%s %s: AH request failed: %s", request.method, request.path, exc)
         return error_response("upstream_error", "AH could not be reached. Please try again later.", 502, ref)
 

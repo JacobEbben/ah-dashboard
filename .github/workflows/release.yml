@@ -32,6 +32,8 @@ jobs:
       image: ${{ steps.push.outputs.image }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
       - name: Build
         run: >
@@ -42,10 +44,16 @@ jobs:
       - name: Smoke test (production-like, no AH login)
         run: bash deploy/tests/smoke-image.sh ah-dashboard:ci
 
+      # Trivy gets a saved copy of the image, read-only, and never the Docker socket: with the
+      # socket a tampered scanner could swap the image that the next step pushes and deploys.
+      # It is pinned by digest (0.76.1), so a moved tag can't change what runs here.
       - name: Vulnerability scan (fixable critical issues fail the release)
-        run: >
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.76.1
-          image --quiet --exit-code 1 --severity CRITICAL --ignore-unfixed ah-dashboard:ci
+        run: |
+          docker save ah-dashboard:ci -o "$RUNNER_TEMP/image.tar"
+          docker run --rm -v "$RUNNER_TEMP/image.tar:/image.tar:ro" \
+            aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c \
+            image --quiet --exit-code 1 --severity CRITICAL --ignore-unfixed --input /image.tar
+          rm -f "$RUNNER_TEMP/image.tar"
 
       - name: Push to GitHub Container Registry
         id: push

@@ -32,7 +32,7 @@ from .ratelimit import RateLimiter
 from .scheduler import Scheduler
 from .services import bargains as bargains_service
 from .services import bonus as bonus_service
-from .services.bonus import WeekCache
+from .services.bonus import BonusStore, WeekCache
 from .services.cache import TTLCache
 from .services.stores import KnownStores
 
@@ -127,7 +127,8 @@ def _build_services(app: Flask, settings: Settings, secret: str) -> Services:
     session = AHSession(tokens, lambda token: AHClient(
         token=token, url=ah.graphql_url, timeout=ah.timeout, user_agent=ah.user_agent,
         rest_url=ah.rest_url, rest_headers=ah.rest_headers,
-    ), max_concurrent=ah.max_concurrent)
+    ), max_concurrent=ah.max_concurrent, rate=ah.rate_per_second, burst=ah.rate_burst,
+        throttle_pause=ah.throttle_pause)
 
     return Services(
         settings=settings,
@@ -151,7 +152,7 @@ def _build_services(app: Flask, settings: Settings, secret: str) -> Services:
             spawn=lambda fn: scheduler.spawn(fn, "cache-refresh")),
         stores_cache=TTLCache(ttl=c.store_search_ttl, max_entries=2000),
         # The national Bonus: one shared copy, kept until the bonus week ends.
-        bonus_cache=WeekCache(retry_seconds=c.bonus_retry),
+        bonus_cache=WeekCache(retry_seconds=c.bonus_retry, store=BonusStore(db)),
     )
 
 

@@ -66,6 +66,14 @@ CREATE TABLE IF NOT EXISTS sessions (
     created_at REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS sessions_by_user ON sessions (username, created_at);
+-- The cached national Bonus week (services/bonus.BonusStore), one row: public AH
+-- data, kept so a restart or redeploy doesn't load it from AH again. A new table:
+-- no SCHEMA_VERSION bump needed (older versions ignore it).
+CREATE TABLE IF NOT EXISTS bonus_week (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    data TEXT NOT NULL,
+    loaded_at REAL NOT NULL
+);
 CREATE TABLE IF NOT EXISTS secrets (
     name  TEXT PRIMARY KEY,            -- e.g. "ah_tokens"
     value BLOB NOT NULL                -- already encrypted by the caller
