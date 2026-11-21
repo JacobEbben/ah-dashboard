@@ -131,8 +131,10 @@ export const adminCsrf = () => (admin ? admin.csrf : null);
 
 /** Force refresh is admin-only: show the button only with an admin session. @param {{csrf: string}|null} value */
 export function setAdmin(value) {
+  const changed = (admin ? admin.csrf : null) !== (value ? value.csrf : null);
   admin = value;
   $('forceRefresh').hidden = !admin;
+  if (changed) emit(EV.admin, { csrf: admin ? admin.csrf : null });
 }
 
 async function refreshAdminState() {

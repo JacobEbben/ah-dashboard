@@ -40,11 +40,37 @@ log = logging.getLogger(__name__)
 Loader = Callable[[], BonusWeek]
 
 
-def load_bonus(gateway: AHGateway, today: date | None = None, max_workers: int = 6) -> BonusWeek:
-    """The current week's national Bonus. Raises AHError when the metadata
-    cannot be loaded; a failing category is reported in ``errors``."""
+class NextWeekUnavailable(Exception):
+    """AH hasn't published next week's Bonus yet (its metadata lists only the current week)."""
+
+
+def next_period(periods: list[tuple[Period, list[str]]], today: date) -> tuple[Period, list[str]] | None:
+    """The first period that starts after ``today`` (next week), or None."""
+    for period, categories in periods:
+        try:
+            if date.fromisoformat(period.start or "") > today:
+                return period, categories
+        except ValueError:
+            continue
+    return None
+
+
+def load_bonus(gateway: AHGateway, today: date | None = None, max_workers: int = 6,
+               next_week: bool = False) -> BonusWeek:
+    """The current week's national Bonus (``next_week``: next week's, asked
+    for on its first day; NextWeekUnavailable while AH hasn't published it).
+    Raises AHError when the metadata cannot be loaded; a failing category is
+    reported in ``errors``."""
     day = today or amsterdam_today()
-    period, categories = mapping.guarded("bonus metadata", mapping.bonus_period, gateway.bonus_metadata())
+    if next_week:
+        periods = mapping.guarded("bonus metadata", mapping.bonus_periods, gateway.bonus_metadata())
+        upcoming = next_period(periods, day)
+        if upcoming is None:
+            raise NextWeekUnavailable("next week's Bonus is not published yet")
+        period, categories = upcoming
+        day = date.fromisoformat(period.start or "")
+    else:
+        period, categories = mapping.guarded("bonus metadata", mapping.bonus_period, gateway.bonus_metadata())
 
     def run(category: str) -> tuple[list[Offer], CategoryError | None]:
         try:
@@ -104,12 +130,17 @@ class BonusStore:
     survives restarts and redeploys. Public AH data only, no user data. A row
     that can't be read is ignored (the week is then loaded from AH)."""
 
-    def __init__(self, db):
+    TABLES = ("bonus_week", "bonus_next_week")
+
+    def __init__(self, db, table: str = "bonus_week"):
+        if table not in self.TABLES:      # the name goes into the SQL: only these two
+            raise ValueError(table)
         self._db = db
+        self._table = table
 
     def load(self) -> tuple[BonusWeek, float] | None:
         try:
-            row = self._db.one("SELECT data, loaded_at FROM bonus_week WHERE id = 1")
+            row = self._db.one(f"SELECT data, loaded_at FROM {self._table} WHERE id = 1")
             if row is None:
                 return None
             week = bonus_week_from_stored(json.loads(row["data"]))
@@ -121,14 +152,14 @@ class BonusStore:
     def save(self, week: BonusWeek, loaded_at: float) -> None:
         try:
             self._db.execute(
-                "INSERT INTO bonus_week (id, data, loaded_at) VALUES (1, ?, ?) "
+                f"INSERT INTO {self._table} (id, data, loaded_at) VALUES (1, ?, ?) "
                 "ON CONFLICT(id) DO UPDATE SET data = excluded.data, loaded_at = excluded.loaded_at",
                 (json.dumps(week.to_stored(), separators=(",", ":")), loaded_at))
         except Exception:   # only the copy for the next start is lost
             log_error(log, "could not store the Bonus week", exc_info=True)
 
     def clear(self) -> None:
-        self._db.execute("DELETE FROM bonus_week")
+        self._db.execute(f"DELETE FROM {self._table}")
 
 
 class WeekCache:
@@ -148,8 +179,12 @@ class WeekCache:
     """
 
     def __init__(self, retry_seconds: float = 300, clock: Callable[[], float] = time.time,
-                 today: Callable[[], date] = amsterdam_today, store: BonusStore | None = None):
+                 today: Callable[[], date] = amsterdam_today, store: BonusStore | None = None,
+                 next_week: bool = False):
         self.retry_seconds = retry_seconds
+        # next_week: the cache of next week's Bonus (admins only). Its copy is
+        # usable until that week starts (then this week's cache takes over).
+        self.next_week = next_week
         self._clock = clock
         self._today = today
         self._store = store
@@ -163,11 +198,19 @@ class WeekCache:
             self._store.save(week, loaded_at)
 
     def _current_week(self, week: BonusWeek) -> bool:
+        """The copy is for the week this cache is about (this week, or still the coming one)."""
         try:
             start, end = date.fromisoformat(week.period.start or ""), date.fromisoformat(week.period.end or "")
         except ValueError:
             return False
+        if self.next_week:
+            return self._today() < start
         return start <= self._today() <= end
+
+    def current(self) -> BonusWeek | None:
+        """The copy if it is still for this cache's week (no AH request)."""
+        entry = self._entry
+        return entry[0] if entry is not None and self._current_week(entry[0]) else None
 
     def _fresh(self, entry: tuple[BonusWeek, float]) -> bool:
         week, loaded_at = entry
@@ -244,6 +287,45 @@ def _worse(new: BonusWeek, old: BonusWeek) -> bool:
     """A partial load that is worse than the copy we have: fewer offers, or more gaps."""
     return len(old.items) > len(new.items) or \
         len(old.errors) + old.groups_failed < len(new.errors) + new.groups_failed
+
+
+class NextWeekStatus:
+    """Whether next week's Bonus is published, for the admins' "Next week"
+    button. Asks AH's metadata (one request) at most every ``check_seconds``,
+    and not at all while next week's copy is loaded."""
+
+    def __init__(self, cache: WeekCache, check_seconds: float = 600, clock: Callable[[], float] = time.time,
+                 today: Callable[[], date] = amsterdam_today):
+        self._cache = cache
+        self._check_seconds = check_seconds
+        self._clock = clock
+        self._today = today
+        self._checked: tuple[Period | None, float] | None = None
+        self._lock = threading.Lock()
+
+    def period(self, metadata: Callable[[], object]) -> Period | None:
+        """Next week's period, or None while AH hasn't published it."""
+        loaded = self._cache.current()
+        if loaded is not None:
+            return loaded.period
+        with self._lock:
+            checked = self._checked
+            if checked is not None and self._clock() - checked[1] < self._check_seconds \
+                    and (checked[0] is None or self._still_next(checked[0])):
+                return checked[0]
+            periods = mapping.guarded("bonus metadata", mapping.bonus_periods, metadata())
+            found = next_period(periods, self._today())
+            self._checked = (found[0] if found else None, self._clock())
+            return self._checked[0]
+
+    def _still_next(self, period: Period) -> bool:
+        try:
+            return date.fromisoformat(period.start or "") > self._today()
+        except ValueError:
+            return False
+
+    def clear(self) -> None:
+        self._checked = None
 
 
 def prewarm_job(cache: WeekCache, loader: Loader, ready: Callable[[], bool]) -> Callable[[], float | None]:

@@ -259,3 +259,115 @@ def test_failed_force_refresh_keeps_the_current_copy():
     services(app).ah.fail = {"meta"}
     assert c.post("/api/bonus/force", headers=as_admin(c)).status_code == 502
     assert c.get("/api/bonus").get_json() == before
+
+
+# ---- next week's Bonus (admins only) ----------------------------------------------------------
+NEXT_SECTIONS = {"Volgende week": {"bonusGroupOrProducts": [
+    {"product": {"webshopId": 333, "title": "Kaas", "priceBeforeBonus": 5.0,
+                 "discountLabels": [{"code": "DISCOUNT_PERCENTAGE", "percentage": 25}]}}]}}
+
+
+@pytest.fixture
+def next_app(monkeypatch):
+    from datetime import date
+    today = date(2026, 11, 21)                     # Saturday: META lists 16-22 Nov and 23-29 Nov
+    monkeypatch.setattr(bonus_service, "amsterdam_today", lambda: today)
+    app = create_app("testing")
+    s = services(app)
+    s.ah = FakeSession(sections={**FakeSession().sections, **NEXT_SECTIONS})
+    for part in (s.bonus_cache, s.bonus_next_cache, s.bonus_next_status):
+        part._today = lambda: today
+    return app
+
+
+def _admin(app):
+    from conftest import as_admin
+    c = app.test_client()
+    return c, as_admin(c)
+
+
+def test_next_week_is_listed_and_loaded_for_admins(next_app):
+    c, h = _admin(next_app)
+    status = c.get("/api/bonus/next/status", headers=h).get_json()
+    assert status == {"available": True, "period": {"start": "2026-11-23", "end": "2026-11-29"}}
+    week = c.get("/api/bonus/next", headers=h).get_json()
+    assert week["period"]["start"] == "2026-11-23" and week["categories"] == ["Volgende week"]
+    assert [i["title"] for i in week["items"]] == ["Kaas"]
+    sections = [p for p, params in services(next_app).ah.calls if params.get("category") == "Volgende week"]
+    assert sections and all(params["date"] == "2026-11-23" for p, params in services(next_app).ah.calls
+                            if params.get("category") == "Volgende week")
+    # This week is untouched.
+    assert c.get("/api/bonus").get_json()["period"]["start"] == "2026-11-16"
+
+
+def test_next_week_status_is_cheap(next_app):
+    c, h = _admin(next_app)
+    for _ in range(5):
+        c.get("/api/bonus/next/status", headers=h)
+    assert _meta_calls(next_app) == 1              # one metadata request per 10 minutes
+    c.get("/api/bonus/next", headers=h)
+    before = _meta_calls(next_app)
+    c.get("/api/bonus/next/status", headers=h)
+    c.get("/api/bonus/next", headers=h)
+    assert _meta_calls(next_app) == before         # loaded: no AH requests at all
+
+
+def test_next_week_unpublished_gives_404(next_app):
+    import copy
+
+    from test_bonus import META
+    meta = copy.deepcopy(META)
+    meta["periods"] = meta["periods"][:1]          # AH lists only this week
+    services(next_app).ah.meta = meta
+    c, h = _admin(next_app)
+    assert c.get("/api/bonus/next/status", headers=h).get_json() == {"available": False, "period": None}
+    r = c.get("/api/bonus/next", headers=h)
+    assert r.status_code == 404 and r.get_json()["error"]["code"] == "bonus_next_unavailable"
+
+
+def test_next_week_is_admin_only(next_app):
+    c = next_app.test_client()
+    services(next_app).users.create("alice", "alice@example.com")
+    from conftest import sign_in
+    for signed_in in (False, True):
+        if signed_in:
+            sign_in(c)
+        assert c.get("/api/bonus/next/status").status_code == 401
+        assert c.get("/api/bonus/next").status_code == 401
+        assert c.post("/api/bonus/next/force").status_code == 401
+    assert services(next_app).ah.calls == []
+
+
+def test_next_week_copy_ends_when_that_week_starts(next_app):
+    from datetime import date
+    c, h = _admin(next_app)
+    c.get("/api/bonus/next", headers=h)
+    cache = services(next_app).bonus_next_cache
+    assert cache.current() is not None
+    cache._today = lambda: date(2026, 11, 23)      # Monday: it is this week's Bonus now
+    assert cache.current() is None
+
+
+def test_next_week_is_stored_apart_from_this_week(tmp_path, monkeypatch):
+    from datetime import date
+    monkeypatch.setattr(bonus_service, "amsterdam_today", lambda: date(2026, 11, 21))
+
+    def make():
+        app = _app(tmp_path)
+        s = services(app)
+        s.ah = FakeSession(sections={**FakeSession().sections, **NEXT_SECTIONS})
+        for part in (s.bonus_cache, s.bonus_next_cache, s.bonus_next_status):
+            part._today = lambda: date(2026, 11, 21)
+        return app
+
+    first = make()
+    c, h = _admin(first)
+    c.get("/api/bonus/next", headers=h)
+    second = make()
+    assert services(second).bonus_next_cache.current().period.start == "2026-11-23"
+    assert services(second).bonus_cache.current() is None     # this week was never loaded
+
+
+def test_bonus_store_only_accepts_its_own_tables():
+    with pytest.raises(ValueError):
+        bonus_service.BonusStore(None, "users; DROP TABLE users")

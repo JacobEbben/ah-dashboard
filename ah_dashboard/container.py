@@ -21,11 +21,11 @@ if TYPE_CHECKING:
     from .auth.users import UserStore
     from .config import Settings
     from .db import Database
-    from .domain.models import BonusWeek, Store, StoreRef
+    from .domain.models import BonusWeek, Period, Store, StoreRef
     from .ratelimit import RateLimiter
     from .scheduler import Scheduler
     from .services.bargains import BargainsResult
-    from .services.bonus import WeekCache
+    from .services.bonus import NextWeekStatus, WeekCache
     from .services.cache import TTLCache
     from .services.stores import KnownStores
 
@@ -48,6 +48,8 @@ class Services:
     bargains_cache: TTLCache         # bargains per store
     stores_cache: TTLCache           # store searches per postal code
     bonus_cache: WeekCache           # this week's national Bonus
+    bonus_next_cache: WeekCache      # next week's national Bonus (admins only)
+    bonus_next_status: NextWeekStatus  # is next week's Bonus published yet (admins' "Next week" button)
 
     @property
     def gateway(self) -> AHGateway:
@@ -63,6 +65,23 @@ class Services:
     def bonus_week(self) -> BonusWeek:
         """This week's Bonus from the shared copy (loaded when needed)."""
         return self.bonus_cache.get(self.load_bonus_week)
+
+    def load_bonus_next_week(self) -> BonusWeek:
+        """Load next week's Bonus from AH now (NextWeekUnavailable until AH publishes it)."""
+        from .services.bonus import load_bonus
+        return load_bonus(self.gateway, max_workers=self.settings.ah.max_workers, next_week=True)
+
+    def bonus_next_week(self) -> BonusWeek:
+        """Next week's Bonus from its shared copy (loaded when needed). Admins only."""
+        return self.bonus_next_cache.get(self.load_bonus_next_week)
+
+    def refresh_bonus_next_week(self) -> BonusWeek:
+        """Reload next week's Bonus from AH now. Admins only."""
+        return self.bonus_next_cache.refresh(self.load_bonus_next_week)
+
+    def bonus_next_period(self) -> Period | None:
+        """Next week's period once AH has published it, else None (cheap: see NextWeekStatus)."""
+        return self.bonus_next_status.period(self.gateway.bonus_metadata)
 
     def refresh_bonus_week(self) -> BonusWeek:
         """Reload this week's Bonus from AH now (admin only: ~160 paced AH requests)."""

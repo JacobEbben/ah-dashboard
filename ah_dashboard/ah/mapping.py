@@ -179,7 +179,19 @@ def bonus_period(meta: Any) -> tuple[Period, list[str]]:
     periods = meta.get("periods") if isinstance(meta, dict) else None
     if not isinstance(periods, list) or not periods or not isinstance(periods[0], dict):
         raise AHError("bonus metadata without periods")
-    current = periods[0]
+    return _period(periods[0])
+
+
+def bonus_periods(meta: Any) -> list[tuple[Period, list[str]]]:
+    """Every period in the metadata, current week first. A few days before a
+    new week starts, AH lists it as a second period (appie-go's
+    GetBonusPeriods). Periods that aren't objects are skipped. Raises AHError
+    when the metadata has no periods at all."""
+    bonus_period(meta)   # the same checks as for the current week
+    return [_period(p) for p in meta["periods"] if isinstance(p, dict)]
+
+
+def _period(current: dict) -> tuple[Period, list[str]]:
     period = Period(start=text(current.get("bonusStartDate"), 10), end=text(current.get("bonusEndDate"), 10))
     categories: list[str] = []
     for tab in _list(current.get("tabs")):

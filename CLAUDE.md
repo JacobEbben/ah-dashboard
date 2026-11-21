@@ -8,7 +8,7 @@ The server calls AH with ONE operator-configured AH login; visitors need no acco
 
 ## Commands (Docker only; no local venv/Node)
 
-Checks run in throwaway containers with the repo mounted read-only. `ci/check.sh` is what CI runs; all of these must stay green (522 pytest tests + ruff + mypy; 30 node tests at time of writing).
+Checks run in throwaway containers with the repo mounted read-only. `ci/check.sh` is what CI runs; all of these must stay green (529 pytest tests + ruff + mypy; 30 node tests at time of writing).
 
 ```bash
 docker compose up -d --build                                            # run on 127.0.0.1:8733, settings from .env
@@ -56,7 +56,7 @@ blueprints api/ web/ admin/ mcp/  →  auth/  →  services/  →  ah/  →  dom
 - Code reaches services via `container.services()` (`services(app)` in tests).
 - Read settings from the typed groups `services().settings.{ah,cache,limits,auth,app}`, not from `app.config`.
 - `Services` has `settings, db, users, sessions, tokens, ah, scheduler, rate_limiter, admin_limiter, google, known_stores, bargains_cache, stores_cache, bonus_cache`.
-- Shared logic lives on `Services` and is used by both `/api` and `/mcp`: `gateway` (property), `load_bonus_week()`, `bonus_week()`, `find_stores(postcode)`, `bargains(stores, client)` (`client=None` = admin force refresh, unbudgeted), `refresh_bonus_week()` (admin force refresh of the Bonus, `POST /api/bonus/force`; the header's Force refresh button acts on the current view).
+- Shared logic lives on `Services` and is used by both `/api` and `/mcp`: `gateway` (property), `load_bonus_week()`, `bonus_week()`, `find_stores(postcode)`, `bargains(stores, client)` (`client=None` = admin force refresh, unbudgeted), `refresh_bonus_week()` (admin force refresh of the Bonus, `POST /api/bonus/force`; the header's Force refresh button acts on the current view); next week (admins only): `bonus_next_week()`, `refresh_bonus_next_week()`, `bonus_next_period()` behind `/api/bonus/next`, `/api/bonus/next/status`, `/api/bonus/next/force`.
 
 ### Module map
 - `domain/`
@@ -95,7 +95,7 @@ Plain ES modules with no build step. `main.js` is the composition root. Allowed 
 | `sync/` (sync, merge) | core |
 | `bargains/`, `bonus/` | core, lists, ui; **never each other** |
 
-- Cross-module reactions go through `core/events.js`: `on(EV.x, fn)` / `emit(EV.x, detail)`. The events are `EV.lists, lang, cols, stores {reload}, refilter, settings, needBonus, bonusStatus {status, deals}`. A new reaction needs a new `EV` key; never call another feature's render function directly.
+- Cross-module reactions go through `core/events.js`: `on(EV.x, fn)` / `emit(EV.x, detail)`. The events are `EV.lists, lang, cols, stores {reload}, refilter, settings, needBonus, bonusStatus {status, deals}, admin {csrf}`. A new reaction needs a new `EV` key; never call another feature's render function directly.
 - Each view has one controller that re-renders: `bargains/index.js`, `bonus/index.js`. Other modules emit events.
 - DOM-free logic lives in `bargains/model.js`, `bonus/model.js`, `core/layout.js`, `core/unit.js`, `core/offers.js`, `core/format.js` and `sync/merge.js`. Each is tested in `tests/js/` (`node:test`, no DOM). Put new pure logic there and add a test.
 - Server config reaches the page as JSON in `<script type="application/json" id="app-config">` (`web/routes.index`): `maxStores, syncKeys, user, csrf`. `core/config.js` reads it.
@@ -197,7 +197,7 @@ Plain ES modules with no build step. `main.js` is the composition root. Allowed 
 - **Bargain prices** (`bargainPrice.priceNow/priceWas`) arrive as **text** ("1.09"); `mapping.money_text` converts them. Fakes should send text too.
 - **Bonus prices**: the REST pages have no `currentPrice`. The price is computed from `priceBeforeBonus` + `discountLabels` (`domain/pricing.bonus_price`, half-up cents).
   - Group deals come without products; `bonusPromotions(id)` fills `products` (webshop ids, max `MAX_GROUP_PRODUCTS=200`).
-  - A Bonus load is ~300 AH requests: keep it in `WeekCache`. The cache keeps a copy until `bonusEndDate` (Dutch date), retries partial loads after `BONUS_RETRY_SECONDS`, and keeps this week's copy on failure. Failed group lookups (`groups_failed`) also make a week partial. The copy is stored in the database, so redeploys don't reload it from AH (AH's CDN blocked the login after the ~160-request burst of each redeploy).
+  - A Bonus load is ~300 AH requests: keep it in `WeekCache`. The cache keeps a copy until `bonusEndDate` (Dutch date), retries partial loads after `BONUS_RETRY_SECONDS`, and keeps this week's copy on failure. Failed group lookups (`groups_failed`) also make a week partial. Next week: AH's metadata lists it as a second period a few days ahead (`mapping.bonus_periods`, `services/bonus.next_period`); `load_bonus(next_week=True)` asks the sections with `date` = its start. Its own `WeekCache(next_week=True)` (usable until that week starts) is stored in table `bonus_next_week`; `NextWeekStatus` checks the metadata at most every 10 min. The Bonus view shows admins a "Deze week | Volgende week" switch (`#bonusWeekSeg`, via `EV.admin`); next week never feeds the bargains' Bonus tags or the liked notice. The copy is stored in the database, so redeploys don't reload it from AH (AH's CDN blocked the login after the ~160-request burst of each redeploy).
 - **Store search** accepts only a postal code (`StoresFilterInput.postalCode`, limit 25).
 - appie-go (github.com/gwillem/appie-go) is cited in comments as the reference for endpoints.
 

@@ -8,8 +8,12 @@
 // like and hide buttons as the bargains (shared lists). Offers are in AH's
 // order, liked ones first. The notice bar says when liked products are on Bonus this week.
 //
+// Admins also get "This week | Next week" once AH has published next week
+// (/api/bonus/next): the same view, with next week's offers. Next week never
+// feeds the bargains' Bonus tags or the liked-products notice (this week only).
+//
 // Events: emits EV.bonusStatus (bargain cards' Bonus tag, "Bonus"
-// filter); listens to EV.needBonus, EV.lists, EV.cols, EV.lang.
+// filter); listens to EV.needBonus, EV.lists, EV.cols, EV.lang, EV.admin.
 import { api, ApiError, errorText } from '../core/api.js';
 import { $, html } from '../core/dom.js';
 import { emit, on, EV } from '../core/events.js';
@@ -33,8 +37,16 @@ import { categoryGroups, groupOffers, indexDeals, likedOffers, needsFetch, offer
 /** @typedef {{period: {start: string|null, end: string|null}, categories: string[], items: Offer[],
  *             errors: {category: string, code: string, ref: string}[]}} BonusWeek */
 
-/** @type {BonusWeek|null} last /api/bonus answer */
+/** @type {BonusWeek|null} last /api/bonus answer (this week) */
 let data = null;
+/** @type {BonusWeek|null} next week's Bonus (admins only) */
+let nextData = null;
+/** @type {'current'|'next'} the week shown */
+let week = 'current';
+/** @type {string|null} the admin session's CSRF token (EV.admin), null without one */
+let adminCsrf = null;
+/** The week shown. */
+const shown = () => (week === 'next' ? nextData : data);
 /** @type {Promise<void>|null} in-flight request */
 let loading = null;
 let lastCols = 0;
@@ -53,10 +65,10 @@ function saveFilters() {
 // ---- "liked products on Bonus" notice ---------------------------------------------------
 function renderNotice() {
   const bar = $('likedNotice');
-  const week = data && data.period && data.period.start;
+  const weekStart = data && data.period && data.period.start;
   const items = data && Array.isArray(data.items) ? data.items.filter(o => !isHidden(o)) : [];
-  const n = week ? likedOffers(items, isLiked).length : 0;
-  bar.hidden = !n || storage.get(KEYS.bonusNoticeSeen) === week;
+  const n = weekStart ? likedOffers(items, isLiked).length : 0;
+  bar.hidden = !n || storage.get(KEYS.bonusNoticeSeen) === weekStart;
   if (bar.hidden) { bar.innerHTML = ''; return; }
   bar.innerHTML = html`<span class="focustext">${t('likedOnBonus', n)}</span>
     <span class="cat-actions">
@@ -73,8 +85,8 @@ function renderNotice() {
 
 /** Closed for this Bonus week (it comes back for the next week). */
 function closeNotice() {
-  const week = data && data.period && data.period.start;
-  if (week) storage.set(KEYS.bonusNoticeSeen, week);
+  const weekStart = data && data.period && data.period.start;
+  if (weekStart) storage.set(KEYS.bonusNoticeSeen, weekStart);
   renderNotice();
 }
 
@@ -221,10 +233,11 @@ function renderBonus() {
   results.innerHTML = '';
   summary.textContent = '';
   $('bonusCats').hidden = true;
-  $('bonusSearchBar').hidden = !data;
-  renderGroupsPanel(data && Array.isArray(data.categories) ? data.categories : []);
-  if (!data) return;
-  const all = Array.isArray(data.items) ? data.items : [];
+  const d = shown();
+  $('bonusSearchBar').hidden = !d;
+  renderGroupsPanel(d && Array.isArray(d.categories) ? d.categories : []);
+  if (!d) return;
+  const all = Array.isArray(d.items) ? d.items : [];
   if (!all.length) { summary.textContent = t('bonusNone'); return; }
 
   // Hidden products: left out unless "Show hidden products" is on.
@@ -235,7 +248,7 @@ function renderBonus() {
   const items = visible;
   if (!items.length) { summary.textContent = withHidden(t('bonusNone')); return; }
 
-  const categories = Array.isArray(data.categories) ? data.categories : [];
+  const categories = Array.isArray(d.categories) ? d.categories : [];
   const byCat = categoryGroups(items, categories);   // category -> its offers
   const liked = likedOffers(items, isLiked);
   const grouped = groupedCats();
@@ -283,7 +296,7 @@ function renderBonus() {
   }
   renderCategoryBar(pills, selected, liked.length);
 
-  const p = data.period || { start: null, end: null };
+  const p = d.period || { start: null, end: null };
   summary.textContent = withHidden(t('bonusSummary', items.length, byCat.size,
     p.start ? fmtDate(p.start) : '', p.end ? fmtDate(p.end) : ''));
 
@@ -314,6 +327,7 @@ function announceStatus(status) {
  */
 export async function loadBonus({ force = false, quiet = false, fromAh = /** @type {string|null} */ (null),
   onAdminLost = () => {} } = {}) {
+  if (week === 'next' && !quiet) return loadNext({ force: force || !!fromAh, fromAh: !!fromAh });
   if (loading) return loading;
   if (!fromAh && !needsFetch(data, force)) { if (!quiet) renderBonus(); return; }
   const buttons = [$('go'), $('forceRefresh')];
@@ -327,7 +341,9 @@ export async function loadBonus({ force = false, quiet = false, fromAh = /** @ty
       // fromAh: the admin's CSRF token; the server reloads the week from AH first.
       data = /** @type {BonusWeek} */ (await (fromAh ? api.forceFetchBonus(fromAh) : api.fetchBonus()));
       const errs = Array.isArray(data.errors) ? data.errors : [];
-      if (errs.length) {
+      if (week === 'next') {
+        // Next week is shown: its own status line stays.
+      } else if (errs.length) {
         const refs = errs.map(e => e.ref).filter(Boolean).slice(0, 3).join(', ');
         setStatus(t('bonusPartial', errs.map(e => e.category).join(', ')) + (refs ? ' ' + t('errorRef', refs) : ''), true);
       } else {
@@ -346,6 +362,89 @@ export async function loadBonus({ force = false, quiet = false, fromAh = /** @ty
     }
   })();
   return loading;
+}
+
+// ---- next week (admins only) ------------------------------------------------------------------
+/** @type {Promise<void>|null} */
+let loadingNext = null;
+
+/**
+ * Load next week's Bonus. ``force``: ask the server again; ``fromAh``: the server
+ * reloads it from AH first (the admin's Force refresh).
+ * @param {{force?: boolean, fromAh?: boolean}} [opts]
+ */
+async function loadNext({ force = false, fromAh = false } = {}) {
+  if (loadingNext) return loadingNext;
+  const csrf = adminCsrf;
+  if (!csrf) { showWeek('current'); return; }
+  if (nextData && !force) { renderBonus(); noteNext(); return; }
+  const buttons = [$('go'), $('forceRefresh')];
+  setStatus(t(fromAh ? 'bonusForceLoading' : 'bonusNextLoading'), false, true);
+  buttons.forEach(b => { b.disabled = true; });
+  loadingNext = (async () => {
+    try {
+      nextData = /** @type {BonusWeek} */ (await (fromAh ? api.forceFetchBonusNext(csrf) : api.fetchBonusNext(csrf)));
+      if (week === 'next') { renderBonus(); noteNext(); }
+    } catch (err) {
+      setStatus(errorText(err), true);
+      if (err instanceof ApiError && (err.code === 'admin_required' || err.code === 'csrf_invalid')) setAdminCsrf(null);
+      if (err instanceof ApiError && err.code === 'bonus_next_unavailable') {
+        showWeekSwitch(false);
+        showWeek('current');
+        setStatus(errorText(err), true);
+      }
+    } finally {
+      buttons.forEach(b => { b.disabled = false; });
+      loadingNext = null;
+    }
+  })();
+  return loadingNext;
+}
+
+/** Status line in next-week mode: which week this is, and that it is for admins only. */
+function noteNext() {
+  const p = nextData && nextData.period;
+  if (week !== 'next' || !p) return;
+  const errs = Array.isArray(nextData && nextData.errors) ? (nextData && nextData.errors) || [] : [];
+  setStatus(errs.length ? t('bonusPartial', errs.map(e => e.category).join(', '))
+    : t('bonusNextNote', p.start ? fmtDate(p.start) : '', p.end ? fmtDate(p.end) : ''), errs.length > 0);
+}
+
+/** Show this week or next week. @param {'current'|'next'} which */
+function showWeek(which) {
+  week = which === 'next' && adminCsrf ? 'next' : 'current';
+  document.querySelectorAll('#bonusWeekSeg .segbtn').forEach(el => {
+    const b = /** @type {HTMLElement} */ (el);
+    const on = b.dataset.week === week;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', String(on));
+  });
+  if (week === 'next') { loadNext(); return; }
+  setStatus('');
+  renderBonus();
+  if (!data) loadBonus();
+}
+
+/** @param {boolean} visible */
+function showWeekSwitch(visible) {
+  $('bonusWeekSeg').hidden = !visible;
+}
+
+/** The admin session was found or ended: show the switch only to admins, once next week is published. */
+async function setAdminCsrf(/** @type {string|null} */ csrf) {
+  adminCsrf = csrf;
+  if (!csrf) {
+    nextData = null;
+    showWeekSwitch(false);
+    if (week === 'next') showWeek('current');
+    return;
+  }
+  try {
+    const s = await api.bonusNextStatus(csrf);
+    showWeekSwitch(!!(s && s.available));
+  } catch (e) {
+    showWeekSwitch(false);   // e.g. AH unreachable: try again on the next page load
+  }
 }
 
 let bonusReady = false;
@@ -397,13 +496,18 @@ export function initBonus() {
       if (again) again.focus();
     },
   });
-  const rerender = () => { if (data && !$('bonusView').hidden && cols() !== lastCols) renderBonus(); };
+  const rerender = () => { if (shown() && !$('bonusView').hidden && cols() !== lastCols) renderBonus(); };
   window.addEventListener('resize', rerender);
-  on(EV.cols, () => { if (data && cols() !== lastCols) renderBonus(); });
+  on(EV.cols, () => { if (shown() && cols() !== lastCols) renderBonus(); });
   // The bargains need this week's Bonus (their "Bonus" filter, or
   // their Bonus tags after loading): load it quietly; a failed load is tried again.
   on(EV.needBonus, () => { if (!bonusReady) loadBonus({ quiet: true }); });
   on(EV.bonusStatus, (/** @type {{status: string}} */ d) => { bonusReady = d.status === 'ready'; });
-  on(EV.lists, () => { if (data) renderBonus(); });   // liked / hidden changed (either view)
-  on(EV.lang, renderBonus);
+  on(EV.lists, () => { if (shown()) renderBonus(); });   // liked / hidden changed (either view)
+  on(EV.lang, () => { renderBonus(); noteNext(); });
+  on(EV.admin, (/** @type {{csrf: string|null}} */ d) => { setAdminCsrf(d ? d.csrf : null); });
+  $('bonusWeekSeg').addEventListener('click', e => {
+    const b = /** @type {HTMLElement|null} */ (e.target instanceof Element ? e.target.closest('.segbtn') : null);
+    if (b && b.dataset.week && b.dataset.week !== week) showWeek(b.dataset.week === 'next' ? 'next' : 'current');
+  });
 }

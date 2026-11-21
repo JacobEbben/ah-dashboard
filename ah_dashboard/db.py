@@ -74,6 +74,12 @@ CREATE TABLE IF NOT EXISTS bonus_week (
     data TEXT NOT NULL,
     loaded_at REAL NOT NULL
 );
+-- Next week's Bonus (admins only; services/bonus.BonusStore), once AH publishes it.
+CREATE TABLE IF NOT EXISTS bonus_next_week (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    data TEXT NOT NULL,
+    loaded_at REAL NOT NULL
+);
 CREATE TABLE IF NOT EXISTS secrets (
     name  TEXT PRIMARY KEY,            -- e.g. "ah_tokens"
     value BLOB NOT NULL                -- already encrypted by the caller

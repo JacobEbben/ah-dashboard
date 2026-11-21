@@ -32,7 +32,7 @@ from .ratelimit import RateLimiter
 from .scheduler import Scheduler
 from .services import bargains as bargains_service
 from .services import bonus as bonus_service
-from .services.bonus import BonusStore, WeekCache
+from .services.bonus import BonusStore, NextWeekStatus, WeekCache
 from .services.cache import TTLCache
 from .services.stores import KnownStores
 
@@ -130,6 +130,9 @@ def _build_services(app: Flask, settings: Settings, secret: str) -> Services:
     ), max_concurrent=ah.max_concurrent, rate=ah.rate_per_second, burst=ah.rate_burst,
         throttle_pause=ah.throttle_pause)
 
+    # Next week's Bonus (admins only), loaded on request once AH publishes it.
+    next_cache = WeekCache(retry_seconds=c.bonus_retry, store=BonusStore(db, "bonus_next_week"), next_week=True)
+
     return Services(
         settings=settings,
         db=db,
@@ -153,6 +156,8 @@ def _build_services(app: Flask, settings: Settings, secret: str) -> Services:
         stores_cache=TTLCache(ttl=c.store_search_ttl, max_entries=2000),
         # The national Bonus: one shared copy, kept until the bonus week ends.
         bonus_cache=WeekCache(retry_seconds=c.bonus_retry, store=BonusStore(db)),
+        bonus_next_cache=next_cache,
+        bonus_next_status=NextWeekStatus(next_cache),
     )
 
 

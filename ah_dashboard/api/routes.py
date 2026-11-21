@@ -104,6 +104,44 @@ def bonus_force():
     return jsonify(services().refresh_bonus_week().to_json())
 
 
+# ---- next week's Bonus: admins only --------------------------------------------------------
+# AH lists the coming week a few days before it starts (services/bonus.next_period).
+# Admin only: loading it costs ~160 AH requests with the server's login.
+
+@bp.get("/bonus/next/status")
+@require_admin_api
+@ah_required
+def bonus_next_status():
+    """{available, period}: is next week's Bonus published yet (at most one AH request per 10 min)."""
+    period = services().bonus_next_period()
+    return jsonify({"available": period is not None, "period": period.to_json() if period else None})
+
+
+@bp.get("/bonus/next")
+@require_admin_api
+@ah_required
+def bonus_next():
+    """Next week's national Bonus, shaped like /api/bonus. 404 while AH hasn't published it."""
+    return jsonify(_next_week(services().bonus_next_week).to_json())
+
+
+@bp.post("/bonus/next/force")
+@require_admin_api
+@ah_required
+def bonus_next_force():
+    """Reload next week's Bonus from AH now (a failed or worse load keeps the current copy)."""
+    return jsonify(_next_week(services().refresh_bonus_next_week).to_json())
+
+
+def _next_week(load):
+    from ..services.bonus import NextWeekUnavailable
+    try:
+        return load()
+    except NextWeekUnavailable:
+        services().bonus_next_status.clear()   # the button goes away on the next status check
+        raise APIError("bonus_next_unavailable", "Next week's Bonus is not published yet.", 404) from None
+
+
 @bp.get("/prefs")
 @require_user_api
 def get_prefs(user):

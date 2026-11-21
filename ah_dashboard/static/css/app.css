@@ -688,6 +688,10 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
 .mystore .shere[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
 .discseg { margin-top: 10px; max-width: 460px; height: 46px; }
 .discseg .segbtn { font-size: 14px; }
+/* Bonus (admins): this week / next week, above the category pills. */
+.weekseg { width: max-content; max-width: 100%; margin-top: 14px; }
+.weekseg .segbtn { padding: 8px 16px; font-size: 14px; }
+.weekseg[hidden] { display: none; }
 /* Presets: the same segmented look, but each part as wide as its name, so the bar grows with every
    saved preset; wider than the room it has, it scrolls sideways. */
 .presetseg { display: flex; flex-wrap: nowrap; width: max-content; max-width: 100%; height: 46px;

@@ -26,6 +26,8 @@ export const EV = Object.freeze({
   needBonus: 'needBonus',
   /** The Bonus loaded or failed. detail: {status: 'loading'|'ready'|'failed', deals: Map<number, string>}. */
   bonusStatus: 'bonusStatus',
+  /** The admin session was found or ended. detail: {csrf: string|null} (Bonus: the "Next week" button). */
+  admin: 'admin',
 });
 
 /** @typedef {(detail?: any) => void} Handler */

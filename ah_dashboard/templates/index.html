@@ -48,6 +48,11 @@
     <div id="bonusPanelRow" class="panelrow">
       {% include "partials/_bonus_groups_panel.html" %}
     </div>
+    {# Admins only, once AH has published next week: this week / next week (static/js/bonus/index.js). #}
+    <div id="bonusWeekSeg" class="segmented weekseg" role="group" data-i18n-aria="bonusWeeks" hidden>
+      <button type="button" class="segbtn active" data-week="current" aria-pressed="true" data-i18n="bonusThisWeek"></button>
+      <button type="button" class="segbtn" data-week="next" aria-pressed="false" data-i18n="bonusNextWeek" data-i18n-title="bonusNextWeekTitle"></button>
+    </div>
     <div id="bonusCats" class="bonuscats" role="group" data-i18n-aria="bonusCategories" hidden></div>
     {# Search over every Bonus category. Hidden until the Bonus is loaded. #}
     <div id="bonusSearchBar" class="searchbar" role="search" hidden>
