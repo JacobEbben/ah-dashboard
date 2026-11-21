@@ -8,12 +8,12 @@
 // like and hide buttons as the bargains (shared lists). Offers are in AH's
 // order, liked ones first. The notice bar says when liked products are on Bonus this week.
 //
-// Admins also get "This week | Next week" once AH has published next week
+// "This week | Next week" appears once AH has published next week
 // (/api/bonus/next): the same view, with next week's offers. Next week never
 // feeds the bargains' Bonus tags or the liked-products notice (this week only).
 //
 // Events: emits EV.bonusStatus (bargain cards' Bonus tag, "Bonus"
-// filter); listens to EV.needBonus, EV.lists, EV.cols, EV.lang, EV.admin.
+// filter); listens to EV.needBonus, EV.lists, EV.cols, EV.lang.
 import { api, ApiError, errorText } from '../core/api.js';
 import { $, html } from '../core/dom.js';
 import { emit, on, EV } from '../core/events.js';
@@ -39,12 +39,12 @@ import { categoryGroups, groupOffers, indexDeals, likedOffers, needsFetch, offer
 
 /** @type {BonusWeek|null} last /api/bonus answer (this week) */
 let data = null;
-/** @type {BonusWeek|null} next week's Bonus (admins only) */
+/** @type {BonusWeek|null} next week's Bonus */
 let nextData = null;
 /** @type {'current'|'next'} the week shown */
 let week = 'current';
-/** @type {string|null} the admin session's CSRF token (EV.admin), null without one */
-let adminCsrf = null;
+/** Next week's availability was asked for (once per page). */
+let nextChecked = false;
 /** The week shown. */
 const shown = () => (week === 'next' ? nextData : data);
 /** @type {Promise<void>|null} in-flight request */
@@ -327,7 +327,8 @@ function announceStatus(status) {
  */
 export async function loadBonus({ force = false, quiet = false, fromAh = /** @type {string|null} */ (null),
   onAdminLost = () => {} } = {}) {
-  if (week === 'next' && !quiet) return loadNext({ force: force || !!fromAh, fromAh: !!fromAh });
+  if (!quiet) checkNext();
+  if (week === 'next' && !quiet) return loadNext({ force: force || !!fromAh, fromAh, onAdminLost });
   if (loading) return loading;
   if (!fromAh && !needsFetch(data, force)) { if (!quiet) renderBonus(); return; }
   const buttons = [$('go'), $('forceRefresh')];
@@ -364,30 +365,28 @@ export async function loadBonus({ force = false, quiet = false, fromAh = /** @ty
   return loading;
 }
 
-// ---- next week (admins only) ------------------------------------------------------------------
+// ---- next week -------------------------------------------------------------------------------
 /** @type {Promise<void>|null} */
 let loadingNext = null;
 
 /**
- * Load next week's Bonus. ``force``: ask the server again; ``fromAh``: the server
- * reloads it from AH first (the admin's Force refresh).
- * @param {{force?: boolean, fromAh?: boolean}} [opts]
+ * Load next week's Bonus. ``force``: ask the server again; ``fromAh``: the
+ * admin's CSRF token, and the server reloads it from AH first (Force refresh).
+ * @param {{force?: boolean, fromAh?: string|null, onAdminLost?: () => void}} [opts]
  */
-async function loadNext({ force = false, fromAh = false } = {}) {
+async function loadNext({ force = false, fromAh = null, onAdminLost = () => {} } = {}) {
   if (loadingNext) return loadingNext;
-  const csrf = adminCsrf;
-  if (!csrf) { showWeek('current'); return; }
   if (nextData && !force) { renderBonus(); noteNext(); return; }
   const buttons = [$('go'), $('forceRefresh')];
   setStatus(t(fromAh ? 'bonusForceLoading' : 'bonusNextLoading'), false, true);
   buttons.forEach(b => { b.disabled = true; });
   loadingNext = (async () => {
     try {
-      nextData = /** @type {BonusWeek} */ (await (fromAh ? api.forceFetchBonusNext(csrf) : api.fetchBonusNext(csrf)));
+      nextData = /** @type {BonusWeek} */ (await (fromAh ? api.forceFetchBonusNext(fromAh) : api.fetchBonusNext()));
       if (week === 'next') { renderBonus(); noteNext(); }
     } catch (err) {
       setStatus(errorText(err), true);
-      if (err instanceof ApiError && (err.code === 'admin_required' || err.code === 'csrf_invalid')) setAdminCsrf(null);
+      if (fromAh && err instanceof ApiError && (err.code === 'admin_required' || err.code === 'csrf_invalid')) onAdminLost();
       if (err instanceof ApiError && err.code === 'bonus_next_unavailable') {
         showWeekSwitch(false);
         showWeek('current');
@@ -401,7 +400,7 @@ async function loadNext({ force = false, fromAh = false } = {}) {
   return loadingNext;
 }
 
-/** Status line in next-week mode: which week this is, and that it is for admins only. */
+/** Status line in next-week mode: which week this is, and that AH can still change it. */
 function noteNext() {
   const p = nextData && nextData.period;
   if (week !== 'next' || !p) return;
@@ -412,7 +411,7 @@ function noteNext() {
 
 /** Show this week or next week. @param {'current'|'next'} which */
 function showWeek(which) {
-  week = which === 'next' && adminCsrf ? 'next' : 'current';
+  week = which === 'next' ? 'next' : 'current';
   document.querySelectorAll('#bonusWeekSeg .segbtn').forEach(el => {
     const b = /** @type {HTMLElement} */ (el);
     const on = b.dataset.week === week;
@@ -430,20 +429,15 @@ function showWeekSwitch(visible) {
   $('bonusWeekSeg').hidden = !visible;
 }
 
-/** The admin session was found or ended: show the switch only to admins, once next week is published. */
-async function setAdminCsrf(/** @type {string|null} */ csrf) {
-  adminCsrf = csrf;
-  if (!csrf) {
-    nextData = null;
-    showWeekSwitch(false);
-    if (week === 'next') showWeek('current');
-    return;
-  }
+/** Show the switch once AH has published next week (asked once per page, when the Bonus is shown). */
+async function checkNext() {
+  if (nextChecked) return;
+  nextChecked = true;
   try {
-    const s = await api.bonusNextStatus(csrf);
+    const s = await api.bonusNextStatus();
     showWeekSwitch(!!(s && s.available));
   } catch (e) {
-    showWeekSwitch(false);   // e.g. AH unreachable: try again on the next page load
+    showWeekSwitch(false);   // e.g. AH unreachable: asked again on the next page load
   }
 }
 
@@ -505,7 +499,6 @@ export function initBonus() {
   on(EV.bonusStatus, (/** @type {{status: string}} */ d) => { bonusReady = d.status === 'ready'; });
   on(EV.lists, () => { if (shown()) renderBonus(); });   // liked / hidden changed (either view)
   on(EV.lang, () => { renderBonus(); noteNext(); });
-  on(EV.admin, (/** @type {{csrf: string|null}} */ d) => { setAdminCsrf(d ? d.csrf : null); });
   $('bonusWeekSeg').addEventListener('click', e => {
     const b = /** @type {HTMLElement|null} */ (e.target instanceof Element ? e.target.closest('.segbtn') : null);
     if (b && b.dataset.week && b.dataset.week !== week) showWeek(b.dataset.week === 'next' ? 'next' : 'current');

@@ -325,17 +325,28 @@ def test_next_week_unpublished_gives_404(next_app):
     assert r.status_code == 404 and r.get_json()["error"]["code"] == "bonus_next_unavailable"
 
 
-def test_next_week_is_admin_only(next_app):
+def test_next_week_is_for_everyone_but_its_force_reload_for_admins(next_app):
+    from conftest import as_admin, configure, sign_in
     c = next_app.test_client()
+    # Anonymous visitors (no CSRF token needed to read):
+    assert c.get("/api/bonus/next/status").get_json()["available"] is True
+    assert c.get("/api/bonus/next").get_json()["period"]["start"] == "2026-11-23"
+    calls = len(services(next_app).ah.calls)
+    # The force reload: not for visitors or ordinary users, and nothing reaches AH.
+    assert c.post("/api/bonus/next/force").status_code == 401
     services(next_app).users.create("alice", "alice@example.com")
-    from conftest import sign_in
-    for signed_in in (False, True):
-        if signed_in:
-            sign_in(c)
-        assert c.get("/api/bonus/next/status").status_code == 401
-        assert c.get("/api/bonus/next").status_code == 401
-        assert c.post("/api/bonus/next/force").status_code == 401
-    assert services(next_app).ah.calls == []
+    sign_in(c)
+    assert c.post("/api/bonus/next/force").status_code == 401
+    as_admin(c)
+    assert c.post("/api/bonus/next/force").status_code == 403                 # admin without CSRF
+    assert len(services(next_app).ah.calls) == calls
+    assert c.post("/api/bonus/next/force", headers={"X-CSRF-Token": "test-csrf"}).status_code == 200
+    assert len(services(next_app).ah.calls) > calls
+    # Reading is rate limited per client, like /api/bonus.
+    configure(next_app, RATE_LIMIT_BONUS=2)
+    other = next_app.test_client()
+    codes = [other.get("/api/bonus/next").status_code for _ in range(3)]
+    assert codes[:2] == [200, 200] and codes[2] == 429
 
 
 def test_next_week_copy_ends_when_that_week_starts(next_app):

@@ -104,12 +104,13 @@ def bonus_force():
     return jsonify(services().refresh_bonus_week().to_json())
 
 
-# ---- next week's Bonus: admins only --------------------------------------------------------
+# ---- next week's Bonus -----------------------------------------------------------------------
 # AH lists the coming week a few days before it starts (services/bonus.next_period).
-# Admin only: loading it costs ~160 AH requests with the server's login.
+# Like /api/bonus: one shared copy for everyone (loaded once, ~160 paced AH requests),
+# rate limited per client. Only the force reload is for admins.
 
 @bp.get("/bonus/next/status")
-@require_admin_api
+@rate_limited("bonus")
 @ah_required
 def bonus_next_status():
     """{available, period}: is next week's Bonus published yet (at most one AH request per 10 min)."""
@@ -118,7 +119,7 @@ def bonus_next_status():
 
 
 @bp.get("/bonus/next")
-@require_admin_api
+@rate_limited("bonus")
 @ah_required
 def bonus_next():
     """Next week's national Bonus, shaped like /api/bonus. 404 while AH hasn't published it."""

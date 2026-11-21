@@ -182,7 +182,7 @@ class WeekCache:
                  today: Callable[[], date] = amsterdam_today, store: BonusStore | None = None,
                  next_week: bool = False):
         self.retry_seconds = retry_seconds
-        # next_week: the cache of next week's Bonus (admins only). Its copy is
+        # next_week: the cache of next week's Bonus. Its copy is
         # usable until that week starts (then this week's cache takes over).
         self.next_week = next_week
         self._clock = clock
@@ -290,8 +290,7 @@ def _worse(new: BonusWeek, old: BonusWeek) -> bool:
 
 
 class NextWeekStatus:
-    """Whether next week's Bonus is published, for the admins' "Next week"
-    button. Asks AH's metadata (one request) at most every ``check_seconds``,
+    """Whether next week's Bonus is published, for the "Next week" button. Asks AH's metadata (one request) at most every ``check_seconds``,
     and not at all while next week's copy is loaded."""
 
     def __init__(self, cache: WeekCache, check_seconds: float = 600, clock: Callable[[], float] = time.time,

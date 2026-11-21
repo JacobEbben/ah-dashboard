@@ -64,10 +64,10 @@ export const api = {
   fetchBonus: () => request('/api/bonus'),
   /** Reload this week's Bonus from AH now. Admin only: needs the session's CSRF token. @param {string} csrf */
   forceFetchBonus: csrf => request('/api/bonus/force', { method: 'POST', csrf }),
-  /** Admins: is next week's Bonus published? {available, period}. @param {string} csrf */
-  bonusNextStatus: csrf => request('/api/bonus/next/status', { csrf }),
-  /** Admins: next week's Bonus (like fetchBonus). @param {string} csrf */
-  fetchBonusNext: csrf => request('/api/bonus/next', { csrf }),
+  /** Is next week's Bonus published? {available, period}. */
+  bonusNextStatus: () => request('/api/bonus/next/status'),
+  /** Next week's Bonus (like fetchBonus); 404 bonus_next_unavailable until AH publishes it. */
+  fetchBonusNext: () => request('/api/bonus/next'),
   /** Admins: reload next week's Bonus from AH now. @param {string} csrf */
   forceFetchBonusNext: csrf => request('/api/bonus/next/force', { method: 'POST', csrf }),
   /** {admin: bool, csrf?: string} for the current browser session. */

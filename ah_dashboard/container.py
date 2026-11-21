@@ -48,8 +48,8 @@ class Services:
     bargains_cache: TTLCache         # bargains per store
     stores_cache: TTLCache           # store searches per postal code
     bonus_cache: WeekCache           # this week's national Bonus
-    bonus_next_cache: WeekCache      # next week's national Bonus (admins only)
-    bonus_next_status: NextWeekStatus  # is next week's Bonus published yet (admins' "Next week" button)
+    bonus_next_cache: WeekCache      # next week's national Bonus, once AH publishes it
+    bonus_next_status: NextWeekStatus  # is next week's Bonus published yet (the "Next week" button)
 
     @property
     def gateway(self) -> AHGateway:
@@ -72,7 +72,7 @@ class Services:
         return load_bonus(self.gateway, max_workers=self.settings.ah.max_workers, next_week=True)
 
     def bonus_next_week(self) -> BonusWeek:
-        """Next week's Bonus from its shared copy (loaded when needed). Admins only."""
+        """Next week's Bonus from its shared copy (loaded when needed)."""
         return self.bonus_next_cache.get(self.load_bonus_next_week)
 
     def refresh_bonus_next_week(self) -> BonusWeek:

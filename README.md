@@ -163,8 +163,8 @@ The environment is parsed like each default (one pair of surrounding quotes is r
 | `GET /api/stores?postcode=` | everyone | `{stores, postcode}`; rate-limited (`stores`). |
 | `POST /api/bargains` | everyone | body `{"stores": [{"id", "name"}]}` → `{items, storeErrors}`; rate-limited and budgeted. |
 | `POST /api/bargains/force` | admin + `X-CSRF-Token` | Reloads from AH now. Not budgeted. |
-| `GET /api/bonus/next/status` | admin + `X-CSRF-Token` | `{available, period}`: has AH published next week's Bonus (at most one AH request per 10 min). |
-| `GET /api/bonus/next` | admin + `X-CSRF-Token` | Next week's Bonus, shaped like `/api/bonus`; 404 `bonus_next_unavailable` until AH publishes it. Stored like this week's. |
+| `GET /api/bonus/next/status` | anyone (limit `RATE_LIMIT_BONUS`) | `{available, period}`: has AH published next week's Bonus (at most one AH request per 10 min). |
+| `GET /api/bonus/next` | anyone (limit `RATE_LIMIT_BONUS`) | Next week's Bonus, shaped like `/api/bonus`; 404 `bonus_next_unavailable` until AH publishes it. Stored like this week's. |
 | `POST /api/bonus/next/force` | admin + `X-CSRF-Token` | Reloads next week's Bonus from AH now. |
 | `POST /api/bonus/force` | admin + `X-CSRF-Token` | Reloads this week's Bonus from AH now (~160 paced requests, a minute or two); a failed or worse load keeps the current copy. |
 | `GET /api/bonus` | everyone | `{period, categories, items, errors}`. |

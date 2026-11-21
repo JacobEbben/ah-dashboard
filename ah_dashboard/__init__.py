@@ -130,7 +130,7 @@ def _build_services(app: Flask, settings: Settings, secret: str) -> Services:
     ), max_concurrent=ah.max_concurrent, rate=ah.rate_per_second, burst=ah.rate_burst,
         throttle_pause=ah.throttle_pause)
 
-    # Next week's Bonus (admins only), loaded on request once AH publishes it.
+    # Next week's Bonus, loaded on request once AH publishes it.
     next_cache = WeekCache(retry_seconds=c.bonus_retry, store=BonusStore(db, "bonus_next_week"), next_week=True)
 
     return Services(

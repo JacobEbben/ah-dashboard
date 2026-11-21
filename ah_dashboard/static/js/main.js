@@ -47,7 +47,7 @@ function start() {
   $('go').addEventListener('click', () => (currentView() === 'bonus' ? loadBonus({ force: true }) : loadBargains()));
   // Force refresh (admins only): reload the current view's data from AH, bypassing the server's cache.
   $('forceRefresh').addEventListener('click', () => (currentView() === 'bonus'
-    ? loadBonus({ fromAh: adminCsrf(), onAdminLost: () => setAdmin(null) })
+    ? loadBonus({ fromAh: adminCsrf(), onAdminLost: () => setAdmin(null) })   // this week or next, as shown
     : loadBargains({ force: true })));
   initViewSwitch({ bonus: () => loadBonus() });   // loads the Bonus when first shown
 
