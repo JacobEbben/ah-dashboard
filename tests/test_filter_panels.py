@@ -15,7 +15,7 @@ def test_bargain_filters_are_a_fold_out_panel(client):
     assert re.search(r'id="filterToggle"[^>]*aria-controls="filterBody"', page)
     assert 'id="filterCount"' in page
     # On the page itself: the discount buttons, presets, store chips; Remove filters always there (disabled).
-    for el in ('id="minDisc"', 'id="presetBar"', 'id="storeChips"', 'id="inStoreBar"'):
+    for el in ('id="minDisc"', 'id="presetBar"', 'id="storeChips"'):
         assert el in page and el not in panel, el
     assert re.search(r'id="clearFilters"[^>]*disabled', page)
     # No "liked only" filter and no product search: liking only orders the results.

@@ -1,16 +1,10 @@
-{# The followed stores as chips (one colour each). Tap one = "I'm in this store": only its bargains,
-   until tapped again, "All stores", 2 hours or midnight. Then the row shows a banner of the same
-   height instead (tap it to go back), so nothing below moves. ＋ opens the Stores panel (static/js/bargains/stores.js). #}
+{# The followed stores as one segmented bar (one colour dot each), as wide as its stores. Tap one =
+   "I'm in this store": only its bargains, shown highlighted with a ✕, until tapped again, 2 hours or
+   midnight. The bar itself stays, so nothing below moves. ＋ opens the Stores panel
+   (static/js/bargains/stores.js). #}
 <div class="storestrip">
   <div class="chiprow storerow" id="storeRow">
-    <div id="storeChips" class="chipscroll" role="group" data-i18n-aria="stores"></div>
+    <div id="storeChips" class="segmented storeseg" role="group" data-i18n-aria="stores"></div>
     <button type="button" id="storeManageBtn" class="chipicon" aria-controls="storeBody" data-i18n-aria="manageStores" data-i18n-title="manageStores">＋</button>
   </div>
-  {# The whole banner is the way back to all stores. #}
-  <button type="button" id="inStoreBar" class="instorebar" data-i18n-title="inStoreBackTitle" hidden>
-    <span id="inStorePin" class="instorepin dot" aria-hidden="true"></span>
-    <b id="inStoreName" class="instoretext"></b>
-    {# Only the ✕ shows; screen readers hear "All stores". #}
-    <span class="instoreback" aria-hidden="true">✕</span><span class="sronly" data-i18n="allStores"></span>
-  </button>
 </div>

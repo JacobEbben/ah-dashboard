@@ -15,7 +15,7 @@ It also offers an admin panel (`/admin`), a privacy page with data export/delete
 
 ### Bargains view
 - Find stores by Dutch postal code (`1234AB` or `1234`; AH's store search only accepts postal codes) and keep your own list of stores, each with its own colour, shown as chips at the top.
-- **I'm in this store**: tap a store chip to see only that store's bargains (the count line says how many match at your other stores). It ends when tapped again, after 2 hours or at midnight, and is kept per device.
+- **I'm in this store**: tap a store in the store bar to see only its bargains (it stays highlighted) (the count line says how many match at your other stores). It ends when tapped again, after 2 hours or at midnight, and is kept per device.
 - Bargains of up to `MAX_STORES` (default 25) stores at once, loaded in parallel. One failing store doesn't fail the others; it shows a generic message plus an error reference.
 - Minimum discount as one-tap buttons, and a Filters panel: group by, order by, product types, presets. "Remove filters" is always in the count line. These are always remembered. Liking a product doesn't filter: liked products come first among equals.
 - Product types and **presets** (named product-type selections) that can be reordered by dragging or Alt+arrow keys and renamed in place (double-click or F2).

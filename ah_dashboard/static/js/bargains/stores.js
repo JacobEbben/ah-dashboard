@@ -144,26 +144,27 @@ function setInStore(id) {
 /** @param {number} id */
 const toggleInStore = id => setInStore(inStoreId() === id ? null : id);
 
-/** The chip row, or (in a store) the banner of the same height in its place. */
+/** The store bar: one part per store; the store the visitor is in is highlighted, with a ✕. */
 function renderStoreRow() {
   const here = inStoreId();
-  const store = stores.find(s => s.id === here);
-  $('storeRow').hidden = !!store;
-  $('inStoreBar').hidden = !store;
-  if (store) {
-    $('inStorePin').className = `instorepin dot ${colorClass(store.color)}`;
-    $('inStoreName').textContent = t('inStoreOnly', store.name);
-  }
   const box = $('storeChips');
   box.innerHTML = '';
   for (const s of stores) {
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'storechip';
-    b.setAttribute('aria-pressed', String(s.id === here));
-    b.title = t('imHereTitle', s.name);
-    b.innerHTML = html`<span class="dot ${colorClass(s.color)}"></span><span class="storechipname">${s.name}</span>`;
-    b.addEventListener('click', () => toggleInStore(s.id));
+    const on = s.id === here;
+    b.className = 'segbtn storechip' + (on ? ' active' : '');
+    b.setAttribute('aria-pressed', String(on));
+    b.title = on ? t('inStoreBackTitle') : t('imHereTitle', s.name);
+    b.innerHTML = on
+      ? html`<span class="dot ${colorClass(s.color)}"></span><span class="storechipname">${s.name}</span><span class="storechipx" aria-hidden="true">✕</span>`
+      : html`<span class="dot ${colorClass(s.color)}"></span><span class="storechipname">${s.name}</span>`;
+    b.addEventListener('click', () => {
+      toggleInStore(s.id);
+      // The bar was rebuilt: keep the keyboard focus on this store.
+      const again = box.querySelectorAll('.storechip')[stores.indexOf(s)];
+      if (again) /** @type {HTMLElement} */ (again).focus({ preventScroll: true });
+    });
     box.appendChild(b);
   }
 }
@@ -259,12 +260,6 @@ export function initStores() {
     openStoresPanel();
     $('storeQuery').focus({ preventScroll: true });
     $('storePanel').scrollIntoView({ block: 'nearest' });
-  });
-  $('inStoreBar').addEventListener('click', () => {
-    setInStore(null);
-    // The banner is gone: keep the keyboard focus on that store's chip.
-    const chips = $('storeChips').querySelectorAll('.storechip');
-    if (chips.length) /** @type {HTMLElement} */ (chips[0]).focus({ preventScroll: true });
   });
   // Back to the tab after a while: "I'm in this store" may have ended.
   let lastHere = inStoreId();
