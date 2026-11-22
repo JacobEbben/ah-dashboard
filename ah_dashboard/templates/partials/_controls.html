@@ -32,7 +32,7 @@
     <button type="submit" class="secondary authbtn" data-i18n="signOut"></button>
   </form>
   {% elif signin %}
-  {# Straight to Google (web/google.py); no sign-in page in between. #}
-  <a class="secondary authbtn googleauth" href="{{ url_for('web.google_start') }}" data-i18n-title="signInWhy">{% include "partials/_google_logo.html" %}<span data-i18n="signInGoogle"></span></a>
+  {# Straight to the login service (web/login.py); no sign-in page in between. #}
+  <a class="secondary authbtn" href="{{ url_for('web.login_start') }}" data-i18n-title="signInWhy" data-i18n="signInLogin"></a>
   {% endif %}
 </div>

@@ -11,7 +11,7 @@ Commands and day-to-day rules are in `CLAUDE.md`; operating the app is in `READM
 ```
             HTTP
               │
-┌─────────────▼──────────────┐   web/      the page, /login, /auth/google, /logout, /healthz
+┌─────────────▼──────────────┐   web/      the page, /login, /auth/login, /logout, /healthz
 │ Blueprints (Flask)         │   api/      JSON API (/api)
 │                            │   admin/    admin panel (/admin)
 │                            │   mcp/      MCP server for AI assistants (/mcp)

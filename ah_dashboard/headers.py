@@ -12,7 +12,9 @@ from __future__ import annotations
 from flask import Flask, request
 
 
-def build_csp(image_hosts: str) -> str:
+def build_csp(image_hosts: str, form_targets: str = "") -> str:
+    """``form_targets``: the login service's origin. Signing out is a POST that redirects
+    there, and browsers apply form-action to that redirect."""
     hosts = " ".join(h for h in str(image_hosts or "").split() if h.startswith("https://"))
     return "; ".join([
         "default-src 'none'",
@@ -23,7 +25,7 @@ def build_csp(image_hosts: str) -> str:
         "font-src 'self'",          # self-hosted woff2 files (static/fonts)
         "manifest-src 'self'",
         "base-uri 'none'",
-        "form-action 'self'",
+        f"form-action 'self' {form_targets}".strip(),
         "frame-ancestors 'none'",
     ])
 
@@ -38,15 +40,16 @@ PERMISSIONS_POLICY = ", ".join(f"{f}=()" for f in (
 ))
 
 
-def register(app: Flask, *, image_hosts: str, hsts: bool) -> None:
+def register(app: Flask, *, image_hosts: str, hsts: bool, form_targets=lambda: "") -> None:
+    """``form_targets()``: the login service's origin (it can change in the admin panel)."""
     """Add the security headers to every response. ``hsts``: served via HTTPS
     (ADMIN_COOKIE_SECURE)."""
-    csp = build_csp(image_hosts)
+
 
     @app.after_request
     def _headers(resp):
         h = resp.headers
-        h.setdefault("Content-Security-Policy", csp)
+        h.setdefault("Content-Security-Policy", build_csp(image_hosts, form_targets()))
         h.setdefault("X-Content-Type-Options", "nosniff")
         h.setdefault("X-Frame-Options", "DENY")
         h.setdefault("Referrer-Policy", "no-referrer")

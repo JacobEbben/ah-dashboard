@@ -111,6 +111,45 @@
     </form>
   </div>
 
+  <div class="admincard" id="login-service">
+    <h2>Login service</h2>
+    <p class="smeta">Users sign in through the central login service (OpenID Connect). Register this app there with:</p>
+    <dl>
+      <dt>Redirect URI</dt><dd class="mono">{{ login_urls.redirect }}</dd>
+      <dt>Logout redirect</dt><dd class="mono">{{ login_urls.logout }}</dd>
+      <dt>Back-channel logout</dt><dd class="mono">{{ login_urls.backchannel }}</dd>
+      <dt>Status</dt>
+      <dd>{% if login_conn and login_conn.issuer and login_conn.client_id and login_conn.has_secret %}<span class="good">Configured</span>
+        {% else %}<span class="bad">Not configured: sign-in is off</span>{% endif %}
+        {% if login_conn %}<span class="smeta">· {% if login_conn.source == 'panel' %}set here{% if login_conn.updated_at %} {{ login_conn.updated_at | admin_time }}{% endif %}{% else %}from the LOGIN_* settings{% endif %}</span>{% endif %}</dd>
+    </dl>
+    {% if can_change_login %}
+    <form method="post" action="{{ url_for('admin.save_login_service') }}" autocomplete="off">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label for="issuer">Issuer URL</label>
+      <input id="issuer" name="issuer" type="url" required spellcheck="false" placeholder="https://login.example.org" value="{{ login_conn.issuer if login_conn else '' }}">
+      <label for="client_id">Client id</label>
+      <input id="client_id" name="client_id" required spellcheck="false" value="{{ login_conn.client_id if login_conn else '' }}">
+      <label for="client_secret">Client secret{% if login_conn and login_conn.has_secret %} (leave empty to keep the current one){% endif %}</label>
+      <input id="client_secret" name="client_secret" type="password" autocomplete="off" spellcheck="false">
+      <button type="submit">Save and test</button>
+    </form>
+    {% if login_conn %}
+    <form method="post" action="{{ url_for('admin.test_login_service') }}">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><button type="submit">Test connection</button>
+    </form>
+    {% endif %}
+    {% if login_conn and login_conn.source == 'panel' %}
+    <form method="post" action="{{ url_for('admin.disconnect_login_service') }}">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><button type="submit" class="mini danger">Disconnect</button>
+    </form>
+    {% endif %}
+    {% else %}
+    <p class="smeta">Issuer: <span class="mono">{{ login_conn.issuer if login_conn else '—' }}</span>.
+      Only the admin password can change this connection (log in with it on the admin login page).</p>
+    {% endif %}
+  </div>
+
   <div class="admincard" id="errors">
     <h2>Look up an error</h2>
     {% if error_log %}
@@ -131,7 +170,7 @@
     <h2>Login lockouts</h2>
     <p class="smeta">Failed admin-password sign-ins, per client (IPv4 address or IPv6 /64) and for the password itself
       (counted over all clients). A lock ends by itself; lift it here if you locked yourself out.
-      Google sign-ins are not counted here.</p>
+      Sign-ins through the login service are limited there, not here.</p>
     {% if lockouts %}
     <div class="userlist">
       {% for e in lockouts %}
@@ -162,14 +201,14 @@
   <div class="admincard wide" id="users">
     <h2>Dashboard users</h2>
     <p class="smeta">
-      Signing in is optional and works with Google: anyone with a verified Google account can sign in, and the first
-      sign-in creates the account (at most {{ max_users }}). A signed-in user's settings (stores, filters, presets,
+      Signing in is optional and goes through the login service: anyone with an account there can sign in, and the
+      first sign-in creates the account here (at most {{ max_users }}). A signed-in user's settings (stores, filters, presets,
       likes, hidden products, language, theme) are saved on the server and synced to their other devices. No passwords
       are stored. Disabling or deleting a user signs them out everywhere; deleting also deletes their saved settings.
-      An <b>admin</b> user has the same rights as the admin password: signing in with Google opens an admin session.
-      Removing admin, disabling or deleting them ends it at once.
-      An account without a linked Google account (from before Google sign-in) is linked on the first Google sign-in
-      with its e-mail address: set that address below.
+      An <b>admin</b> user has the same rights as the admin password, but only in a sign-in made with the
+      authenticator code at the login service (REQUIRE_ADMIN_2FA). Removing admin, disabling or deleting them ends it
+      at once. An account that is not linked to a login-service user yet (e.g. from the Google era) is linked on the
+      first sign-in with the same username; <b>Unlink</b> lets the next sign-in with that username link again.
     </p>
     {% if users %}
     <div class="userlist">
@@ -179,17 +218,17 @@
           <b>{{ u.username }}</b>
           {% if u.is_admin %}<span class="badge-admin">admin</span>{% endif %}
           {% if u.disabled %}<span class="badge-off">disabled</span>{% endif %}
-          {% if not u.google_sub %}<span class="badge-off">not linked to Google</span>{% endif %}
+          {% if not u.login_sub %}<span class="badge-off">not linked yet</span>{% endif %}
           {% if me == u.username %}<span class="smeta">(you)</span>{% endif %}
-          <span class="smeta">{{ u.email or 'no e-mail address' }} · added {{ u.created_at | admin_time }} · last sign-in {{ u.last_login | admin_time }} · synced settings {{ prefs_sizes.get(u.username, 0) | admin_size }}</span>
+          <span class="smeta">{% if u.login_sub %}login account <span class="mono" title="{{ u.login_sub }}">{{ u.login_sub[:8] }}…</span> · {% endif %}added {{ u.created_at | admin_time }} · last sign-in {{ u.last_login | admin_time }} · synced settings {{ prefs_sizes.get(u.username, 0) | admin_size }}</span>
         </div>
         <div class="useractions">
-          <form method="post" action="{{ url_for('admin.set_user_email') }}" class="inline-form" autocomplete="off">
+          {% if u.login_sub %}
+          <form method="post" action="{{ url_for('admin.unlink_user') }}" class="inline-form">
             <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="username" value="{{ u.username }}">
-            <input name="email" type="email" maxlength="320" required placeholder="E-mail address"
-                   aria-label="E-mail address for {{ u.username }}">
-            <button type="submit" class="mini" title="Links the Google account with this address on its next sign-in (unlinks the current one)">Set e-mail</button>
+            <button type="submit" class="mini" title="Forget the linked login-service user and sign out everywhere; the next sign-in with this username links again">Unlink</button>
           </form>
+          {% endif %}
           <form method="post" action="{{ url_for('admin.demote_user' if u.is_admin else 'admin.promote_user') }}" class="inline-form">
             <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="username" value="{{ u.username }}">
             <button type="submit" class="mini">{{ 'Remove admin' if u.is_admin else 'Make admin' }}</button>
@@ -208,7 +247,7 @@
       {% endfor %}
     </div>
     {% else %}
-    <p class="smeta">No users yet: they appear after their first Google sign-in.</p>
+    <p class="smeta">No users yet: they appear after their first sign-in.</p>
     {% endif %}
   </div>
   </div>

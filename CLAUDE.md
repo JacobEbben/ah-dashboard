@@ -4,11 +4,11 @@ Flask app (Waitress, one process) with two views on Albert Heijn offers:
 - **Bargains**: per-store "Laatste Kans Koopjes", from GraphQL `bargainItems`.
 - **Bonus**: this week's national Bonus, from REST `/mobile-services/bonuspage/...` plus GraphQL `bonusPromotions` for group deals.
 
-The server calls AH with ONE operator-configured AH login; visitors need no account. Optional Google sign-in only syncs settings. Also included: `/admin` panel, `/privacy` (export/delete), `/voorwaarden` (terms of use), `/mcp` (read-only MCP server). Python 3.12; deps Flask 3, waitress 3, cryptography (`requirements.txt`, pinned with hashes in `requirements.lock`).
+The server calls AH with ONE operator-configured AH login; visitors need no account. Optional sign-in through the central login service (`../login-service`, OpenID Connect) only syncs settings. Also included: `/admin` panel, `/privacy` (export/delete), `/voorwaarden` (terms of use), `/mcp` (read-only MCP server). Python 3.12; deps Flask 3, waitress 3, cryptography (`requirements.txt`, pinned with hashes in `requirements.lock`).
 
 ## Commands (Docker only; no local venv/Node)
 
-Checks run in throwaway containers with the repo mounted read-only. `ci/check.sh` is what CI runs; all of these must stay green (530 pytest tests + ruff + mypy; 31 node tests at time of writing).
+Checks run in throwaway containers with the repo mounted read-only. `ci/check.sh` is what CI runs; all of these must stay green (515 pytest tests + ruff + mypy; 31 node tests at time of writing).
 
 ```bash
 docker compose up -d --build                                            # run on 127.0.0.1:8733, settings from .env
@@ -55,7 +55,7 @@ blueprints api/ web/ admin/ mcp/  →  auth/  →  services/  →  ah/  →  dom
 ### Reaching services and settings
 - Code reaches services via `container.services()` (`services(app)` in tests).
 - Read settings from the typed groups `services().settings.{ah,cache,limits,auth,app}`, not from `app.config`.
-- `Services` has `settings, db, users, sessions, tokens, ah, scheduler, rate_limiter, admin_limiter, google, known_stores, bargains_cache, stores_cache, bonus_cache`.
+- `Services` has `settings, db, users, sessions, tokens, ah, scheduler, rate_limiter, admin_limiter, login_connection, login (property; tests may assign it), known_stores, bargains_cache, stores_cache, bonus_cache`.
 - Shared logic lives on `Services` and is used by both `/api` and `/mcp`: `gateway` (property), `load_bonus_week()`, `bonus_week()`, `find_stores(postcode)`, `bargains(stores, client)` (`client=None` = admin force refresh, unbudgeted), `refresh_bonus_week()` (admin force refresh of the Bonus, `POST /api/bonus/force`; the header's Force refresh button acts on the current view); next week (everyone; its force reload admins only): `bonus_next_week()`, `refresh_bonus_next_week()`, `bonus_next_period()` behind `/api/bonus/next`, `/api/bonus/next/status`, `/api/bonus/next/force`.
 
 ### Module map
@@ -80,7 +80,7 @@ blueprints api/ web/ admin/ mcp/  →  auth/  →  services/  →  ah/  →  dom
   - `sessions.py`: `SessionStore`, `begin`/`end`/`listed`.
   - `access.py`: `current_user`, `require_user_api`.
   - `admin.py`: `admin_user`, `logged_in`, `require_admin`, `require_admin_api`, `touch`, `drop`, `is_last_admin`.
-  - `google.py`: `GoogleSignIn`, `Pending`.
+  - `login_client.py`: `LoginClient`, `Pending` (OpenID Connect client; the same code as File Share's).
   - `csrf.py`, `compare.py` (`same_secret`), `lockout.py` (`LoginLimiter`, `LockoutPolicy`, `login_capacity`, `password_check_slot`).
 - Cross-cutting: `errors.py`, `headers.py`, `ratelimit.py`, `scheduler.py`, `db.py`, `sealing.py`, `logging_setup.py` (`log_error` → 10-hex ref), `errorlog.py` (admin lookup of refs).
 
@@ -105,12 +105,12 @@ Plain ES modules with no build step. `main.js` is the composition root. Allowed 
 - **Key-derivation labels** in `__init__.py`: `SESSION_KEY_LABEL = b"ah-bargains flask session v1"`, `TOKEN_STORE_LABEL = b"ah-bargains token store v1"`. They keep the old project name on purpose; changing them makes the stored AH login unreadable and signs everyone out.
 - **The seal secret**: `TOKEN_SEAL_SECRET`, or a generated `instance/token_seal.secret`. It must never be stored in the database, and changing it has the same effect as changing the labels.
 - **localStorage keys** in `static/js/core/storage.js` `KEYS` (`ah_settings`, `ah_instore`, `ah_presets`, `ah_preset_order`, `ah_stores`, `ah_lang`, `ah_view`, `ah_bonus_cat`, `ah_bonus_filters`, `ah_bonus_groups`, `ah_bonus_notice`, `ah_theme`, `ah_blacklist`, `ah_liked`, `ah_show_hidden`, `ah_cols`, `*_folded`), plus `ah_sync` in `sync/sync.js`. Renaming one wipes users' settings. `theme-init.js` also reads `ah_theme`.
-- **Cookie name**: `ahb_admin` / `__Host-ahb_admin` (when `ADMIN_COOKIE_SECURE`). Session keys: `sid`, `csrf`, `user`, `admin_login_at`, `admin_seen_at`, `admin_pw`, `google_signin`.
+- **Cookie name**: `ahb_admin` / `__Host-ahb_admin` (when `ADMIN_COOKIE_SECURE`). Session keys: `sid`, `csrf`, `user`, `admin_login_at`, `admin_seen_at`, `admin_pw`, `login_pending`.
 - **One server process / one instance per AH login.** AH rotates the refresh token on every renewal, so a second process or deployment invalidates the other's token. `ah-deploy` stops the old container before starting the new one. Rate limits, lockouts and caches are in memory.
 - **No custom User-Agent towards AH GraphQL** (`AH_USER_AGENT` unset). A custom one made AH fail with "Subgraph errors redacted".
 - **Database schema** (`db.py`):
   - A new table or index goes into `_SCHEMA` (`IF NOT EXISTS`), with no version bump.
-  - A change to an existing table is a new `MIGRATIONS[n]` step plus a bump of `SCHEMA_VERSION` (now 3). `_SCHEMA` must describe the end state, because fresh databases are created from it directly.
+  - A change to an existing table is a new `MIGRATIONS[n]` step plus a bump of `SCHEMA_VERSION` (now 4). `_SCHEMA` must describe the end state, because fresh databases are created from it directly.
   - Never lower `SCHEMA_VERSION`: a database with a higher `user_version` is refused (`RuntimeError`), and `ah-deploy`'s rollback relies on this.
   - `users.password_hash` is kept but always `''`.
 - **The synced settings whitelist** has exactly one source: `auth/users.SYNC_KEYS`, which reaches the page as `syncKeys` (a test checks this). Per-device keys (`ah_cols`, folded states, `ah_bonus_notice`) are deliberately not synced.
@@ -133,7 +133,7 @@ Plain ES modules with no build step. `main.js` is the composition root. Allowed 
 - **Errors**:
   - `errors.register` maps `AHAuthError` → 503 `ah_auth_failed` and any other `AHError` → 502 `upstream_error`, centrally (routes let them propagate). Anything unexpected → 500 `internal_error`.
   - Users see generic text plus a `ref` from `log_error()`. Never return upstream or raw error text, cache state, data age or TTLs (`BargainsResult.to_json` deliberately has no cache info).
-  - Never log tokens, the admin password or its hash, Google codes or ID tokens.
+  - Never log tokens, the admin password or its hash, sign-in codes or ID tokens.
 - **Secret comparison**: only via `auth/compare.same_secret` (`hmac.compare_digest` on bytes). `test_no_direct_compare_digest` forbids `compare_digest(` anywhere else in the package.
 - **Endpoints that reach AH** need `@rate_limited("bargains"|"stores"|"bonus")`, `@ah_required` (503 `ah_not_configured`) and a cache.
   - Store loads (cache misses) go through `LoadGuard`. Unknown store ids also count against the `UNKNOWN_STORES_*` budgets; all loads count against `STORE_LOADS_*`.
@@ -156,12 +156,23 @@ Plain ES modules with no build step. `main.js` is the composition root. Allowed 
   - `LoginLimiter` never forgets a locked key.
   - `login_capacity()` is a server-wide cap checked before hashing.
   - `password_check_slot()` allows at most 2 concurrent scrypt checks.
-  - **Never spend `login_capacity` on cheap, anonymous actions**; it would become a lock-everyone-out switch. Google sign-in starts have their own per-client bucket `google-signin`.
-- **Google sign-in** (`auth/google.py`, `web/google.py`):
-  - Off unless both `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set (then `services().google` is None and `/auth/google*` is a 404).
-  - Scopes `openid email`; PKCE S256; state and nonce in the session for `PENDING_SECONDS=600`, used once. Claims checked: iss, aud/azp, exp (±120 s), nonce, `email_verified`. Signature not checked, by design.
-  - Accounts match on `google_sub`; an account with an e-mail but no sub links on first sign-in. `link_google` refuses to replace an existing sub (`already_linked`); relinking only happens via the admin's "Set e-mail".
-  - No Google tokens are stored, and there is no Google JavaScript.
+  - **Never spend `login_capacity` on cheap, anonymous actions**; it would become a lock-everyone-out switch. Sign-in starts have their own per-client bucket `login-signin`.
+- **Sign-in through the login service** (`auth/login_client.py`, `web/login.py`):
+  - The connection comes from the admin panel's "Login service" card (`auth/login_connection.py`, table `login_config`,
+    secret sealed with `LOGIN_CONFIG_LABEL`), else from `LOGIN_ISSUER`/`LOGIN_CLIENT_ID`/`LOGIN_CLIENT_SECRET`. Only an
+    admin-PASSWORD session may save/test/disconnect it (`password_session()`, else 403); it is tested before saving.
+    Without a connection `services().login` is None and `/auth/login`, `/auth/callback`, `/auth/backchannel-logout`
+    are 404. The CSP form-action is computed per response from the current issuer.
+  - Code flow with PKCE, `state`, `nonce`; the ID token's RS256 signature is checked against the issuer's JWKS, plus
+    iss, aud/azp, exp/iat, nonce; the callback checks the RFC 9207 `iss`. Endpoints must be on the issuer's origin.
+  - Accounts match on `login_sub`; an account WITHOUT one (Google era, or made by the admin) links on the first
+    sign-in with the same username (`preferred_username`). The admin's "Unlink" forgets it (and signs out everywhere).
+  - Sessions store the login service's `sid`, ID token and `amr`. Admin rights need `otp` in `amr`
+    (`REQUIRE_ADMIN_2FA`, default on). Logout also redirects to the login service's end-session endpoint (so the CSP
+    form-action lists the issuer's origin). Back-channel logout tokens (jti replay cache, exp, events) end sessions by
+    `sid`, or every session of the user by `sub`.
+  - Google is gone: `users.email` and `users.google_sub` are kept (unused), like `password_hash`. Schema 4 added
+    `users.login_sub` and the session columns, and ended the Google-era sign-ins.
 - **MCP** (`mcp/`):
   - Stateless (POST only; GET/DELETE 405; notifications 202), anonymous and read-only. Never read the session cookie there, and never add a tool that changes data or reads user data.
   - A foreign `Origin` gets 403. Each message counts against `RATE_LIMIT_MCP`; each tool call also against `Tool.bucket` and `LoadGuard`.
@@ -203,15 +214,15 @@ Plain ES modules with no build step. `main.js` is the composition root. Allowed 
 
 ## Testing without external services
 
-- Tests must never contact AH or Google. Use the testing profile: `create_app("testing")` / `TestingConfig`.
+- Tests must never contact AH or the login service. Use the testing profile: `create_app("testing")` / `TestingConfig`.
   - It doesn't read the environment, uses the fixed `TOKEN_SEAL_SECRET`, an in-memory DB (`DATABASE_FILE=""`), no error log, no background jobs, `BARGAINS_STALE_SECONDS=0`, and all rate limits 0.
 - `tests/conftest.py`:
   - fixtures `app`, `client`, `fake_client`;
   - `FakeAHClient(responses, fail_stores, stale_token_stores)` handles `BargainItems`/`StoresSearch` only; Bonus tests bring their own fake with `get()`;
   - `configure(app, KEY=value)` rebuilds `settings` on a running app;
   - `as_admin(client)` returns CSRF headers;
-  - `enable_google`, `google_sign_in`, `sign_in` (fake token endpoint via `FakeGoogle`).
-- Swap any service by assignment: `services(app).ah = fake`, `services(app).google = fake`.
+  - `enable_login`, `login_sign_in`, `sign_in` (a fake login service: `tests/fake_op.py`, real RS256 tokens).
+- Swap any service by assignment: `services(app).ah = fake`, `services(app).login = LoginClient(..., http=FakeOP().http)` (see `enable_login`).
 - Fake tokens in tests must stay obviously fake (`.gitleaks.toml` has no allowlist).
 - There is no browser/E2E harness in the repo. To look at the UI, serve `create_app(TestingConfig)` with a canned `services(app).ah` fake via Waitress, in a throwaway container. Never use the real `.env`.
 - **Deploy tests** (`deploy/tests/`) use a local registry, `ahtest-*` names and Caddy `tls internal`; they never contact AH. `smoke-image.sh` asserts CSP, no `Server` header, `/admin/` 404, `/api/bonus` 503, read-only code, user `app`.
@@ -231,7 +242,7 @@ Plain ES modules with no build step. `main.js` is the composition root. Allowed 
 
 - `config.from_env` never reads `DEBUG`/`TESTING`; use `APP_ENV`. Empty `DATABASE_FILE` in the env means the default path; only the testing profile gets in-memory.
 - Env values may be quoted: `config.unquote` strips ONE matching pair of `'…'`/`"…"` (in `from_env` and `serve.waitress_options`), like Compose does. Keep `ADMIN_PASSWORD_HASH` single-quoted in `.env` (it contains `$`).
-- `services().google` is `None` without Google config: guard for it.
+- `services().login` is `None` without the login-service settings: guard for it.
 - `AHGateway.configured` treats fakes without a `configured` attribute as configured.
 - The `TTLCache` stale-reload uses `scheduler.spawn` (a no-op after `scheduler.stop()`). In tests `BARGAINS_STALE_SECONDS=0`, so there are no background reloads.
 - `KnownStores` is loaded from the `known_stores` table at start-up and capped at 20,000 ids.

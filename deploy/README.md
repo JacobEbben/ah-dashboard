@@ -45,7 +45,7 @@ user), a domain or subdomain, and a GitHub repository for this project.
    ```
 
    It asks for the server, the domain, the certificate mode, the image repository, app settings
-   and the secrets (admin password, optional Google client secret, ...), checks the DNS, and shows
+   and the secrets (admin password, optional login-service client secret, ...), checks the DNS, and shows
    the server's SSH host keys for you to confirm. It also creates, outside the repository:
    - `~/.config/ah-dashboard/vault-pass`: the password of the encrypted vault. **Store a copy in
      your password manager**; without it the secrets can't be read.

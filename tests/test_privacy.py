@@ -4,7 +4,7 @@ import json
 import re
 
 import pytest
-from conftest import enable_google, google_sign_in, sign_in
+from conftest import enable_login, sign_in
 from werkzeug.security import generate_password_hash
 
 from ah_dashboard import create_app
@@ -20,7 +20,7 @@ def make_app(tmp_path, fake_client, admin_password=True, **settings):
         setattr(Cfg, key, value)
     app = create_app(Cfg)
     services(app).ah = fake_client
-    enable_google(app)
+    enable_login(app)
     for name in ("alice", "bob"):
         services(app).users.create(name, f"{name}@example.com")
     return app
@@ -46,7 +46,7 @@ def delete(client, typed="alice@example.com", confirm="yes"):
 
 def test_footer_links_to_the_privacy_page(app):
     c = app.test_client()
-    for path in ("/", "/login?error=googleFailed", "/privacy"):
+    for path in ("/", "/login?error=loginFailed", "/privacy"):
         assert 'href="/privacy"' in c.get(path).get_data(as_text=True), path
 
 
@@ -58,7 +58,7 @@ def test_privacy_page_without_account(app):
     assert "Privacyverklaring" in page and "Privacy statement" in page      # both languages
     assert "/privacy/export" not in page and "privacy/delete" not in page   # nothing of yours to show
     assert "Set-Cookie" not in resp.headers                                 # no cookie just for reading it
-    assert "Inloggen met Google" in page and "Signing in with Google" in page   # Google is described
+    assert "inlogdienst" in page and "login service" in page and "Google-account" not in page   # the login service is described
     assert c.get("/privacy/export").status_code == 302                      # to the sign-in page
 
 
@@ -72,8 +72,8 @@ def test_signed_in_user_sees_their_data(app):
     sign_in(c)
     services(app).users.set_prefs("alice", {"ah_lang": "en", "ah_liked": json.dumps([{"key": "1", "title": "Melk"}])})
     page = c.get("/privacy").get_data(as_text=True)
-    assert "alice@example.com" in page and "ah_liked" in page and "/privacy/export" in page and "/privacy/delete" in page
-    assert "purpose=link" not in page                                       # already linked to Google
+    assert "alice" in page and "ah_liked" in page and "/privacy/export" in page and "/privacy/delete" in page
+    assert 'data-i18n="loginLinked"' in page                                # linked to the login service
 
 
 def test_export_holds_the_users_data_and_no_secrets(app):
@@ -86,7 +86,7 @@ def test_export_holds_the_users_data_and_no_secrets(app):
     assert resp.headers["Cache-Control"] == "no-store"
     data = json.loads(resp.get_data(as_text=True))
     assert data["account"]["username"] == "alice" and data["account"]["last_sign_in"]
-    assert data["account"]["email"] == "alice@example.com" and data["account"]["google_account_id"] == "sub-alice"
+    assert data["account"]["login_service_user_id"] == "sub-alice" and "google_account_id" not in data["account"]
     assert data["synced_settings"]["values"] == {"ah_lang": "en", "ah_liked": [{"key": "1", "title": "Melk"}]}
     assert len(data["active_sign_ins"]) == 1
     text = resp.get_data(as_text=True)
@@ -139,23 +139,13 @@ def test_delete_needs_csrf_and_a_sign_in(app):
     assert resp.status_code == 302 and services(app).users.get("alice") is not None
 
 
-def test_account_from_before_google_can_link_and_confirms_with_its_username(app):
+def test_account_without_e_mail_confirms_deleting_with_its_username(app):
     users = services(app).users
-    users.create("carol")                                                   # no e-mail, no Google account
+    users.create("carol")                                                   # no e-mail address
     c = app.test_client()
-    sign_in(c, "carol")                                                     # (the helper links one to sign in)
-    services(app).db.execute("UPDATE users SET google_sub = NULL, email = NULL WHERE username = 'carol'")
+    sign_in(c, "carol")
     page = c.get("/privacy").get_data(as_text=True)
-    assert "purpose=link" in page and 'data-n="carol"' in page              # type the username to delete
-    sign_in(app.test_client(), "alice")                                    # alice's Google account: sub-alice
-    taken = google_sign_in(c, "sub-alice", "alice@example.com", purpose="link")
-    assert "error=googleTaken" in taken.headers["Location"]                # someone else's Google account
-    resp = google_sign_in(c, "g-carol", "carol@example.com", purpose="link")
-    assert resp.headers["Location"].endswith("/privacy")
-    assert users.get("carol")["google_sub"] == "g-carol" and users.get("carol")["email"] == "carol@example.com"
-    again = google_sign_in(c, "g-other", "other@example.com", purpose="link")
-    assert "error=googleAlreadyLinked" in again.headers["Location"]       # linked once: never replaced
-    assert users.get("carol")["google_sub"] == "g-carol"
+    assert 'data-n="carol"' in page                                         # type the username to delete
 
 
 def test_last_admin_cannot_delete_themselves_without_admin_password(tmp_path, fake_client):

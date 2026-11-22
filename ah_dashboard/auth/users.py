@@ -1,12 +1,13 @@
 """Dashboard user accounts, in the SQLite database (table ``users``, ``db.py``).
 
-Users sign in with Google (``auth.google``); there are no passwords. Anyone
-with a verified Google account may sign in: the first sign-in creates the
-account (``sign_in_google``), up to ``max_users``. An account is matched by
-Google's permanent account id (``google_sub``), never by e-mail alone; an
-account without a Google id yet (made before Google sign-in, or by the admin
-setting its e-mail address) is linked on the first sign-in with that verified
-address.
+Users sign in through the central login service (``auth.login_client``, OpenID
+Connect); there are no passwords here. Anyone with an account there may sign in:
+the first sign-in creates the account (``sign_in_login``), up to ``max_users``.
+An account is matched by the login service's permanent user id (``login_sub``),
+never by name alone; an account WITHOUT a login-service id yet (from the Google
+era, or made by the admin) is linked on the first sign-in with the same username.
+The admin can unlink an account (``unlink_login``); the next sign-in with that
+username links again.
 
 Every user has a ``session_version``: disabling, deleting or relinking the
 user replaces it, which ends that user's sessions everywhere (see
@@ -53,8 +54,6 @@ class UserError(ValueError):
         "invalid_email": "That is not an e-mail address.",
         "exists": "A user with that name already exists.",
         "email_taken": "Another user already has that e-mail address.",
-        "google_taken": "That Google account is already linked to another user.",
-        "already_linked": "This account is already linked to a Google account.",
         "not_found": "That user doesn't exist.",
         "too_many": "The maximum number of users is reached.",
         "disabled": "This account is disabled.",
@@ -121,7 +120,7 @@ class UserStore:
             "session_version": row["session_version"],
             "is_admin": bool(row["is_admin"]),
             "email": row["email"],
-            "google_sub": row["google_sub"],
+            "login_sub": row["login_sub"],
         }
 
     # ---- queries ----------------------------------------------------------------------
@@ -133,8 +132,8 @@ class UserStore:
         row = self._db.one("SELECT * FROM users WHERE username = ?", (normalize(name),))
         return self._row(row) if row else None
 
-    def by_google(self, sub: str) -> dict | None:
-        row = self._db.one("SELECT * FROM users WHERE google_sub = ?", (str(sub),))
+    def by_login(self, sub: str) -> dict | None:
+        row = self._db.one("SELECT * FROM users WHERE login_sub = ?", (str(sub),))
         return self._row(row) if row else None
 
     def by_email(self, email: str) -> dict | None:
@@ -153,45 +152,47 @@ class UserStore:
         """Enabled users with admin rights."""
         return int(self._db.scalar("SELECT COUNT(*) FROM users WHERE is_admin = 1 AND disabled = 0"))
 
-    # ---- Google sign-in -----------------------------------------------------------------
-    def sign_in_google(self, sub: str, email: str) -> tuple[dict, bool]:
-        """The account for this Google account, linking or creating it.
-        Returns (user, created). Raises ``disabled``, ``too_many``.
+    # ---- sign-in through the login service ------------------------------------------------
+    def sign_in_login(self, sub: str, username: str) -> tuple[dict, bool]:
+        """The account for this login-service user, linking or creating it.
+        Returns (user, created). Raises ``disabled``, ``too_many``, ``invalid_username``.
 
-        1. linked before (same ``google_sub``): that account (its e-mail
-           address is updated when it changed at Google);
-        2. an account with this e-mail address and no Google account yet: link it;
-        3. otherwise a new account.
+        1. linked before (same ``login_sub``): that account;
+        2. an account with this username and no login-service id yet: link it;
+        3. otherwise a new account (named after the username; another name if taken).
         """
-        email = normalize_email(email)
+        name = normalize(username)
+        if not USERNAME_RE.fullmatch(name):
+            raise UserError("invalid_username")
         with self._db.transaction() as conn:
-            row = conn.execute("SELECT * FROM users WHERE google_sub = ?", (sub,)).fetchone()
+            row = conn.execute("SELECT * FROM users WHERE login_sub = ?", (sub,)).fetchone()
             if row is None:
-                row = conn.execute("SELECT * FROM users WHERE email = ? AND google_sub IS NULL", (email,)).fetchone()
+                row = conn.execute("SELECT * FROM users WHERE username = ? AND login_sub IS NULL", (name,)).fetchone()
                 if row is not None:
-                    conn.execute("UPDATE users SET google_sub = ? WHERE username = ?", (sub, row["username"]))
+                    conn.execute("UPDATE users SET login_sub = ? WHERE username = ?", (sub, row["username"]))
             created = False
             if row is None:
                 if conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] >= self.max_users:
                     raise UserError("too_many")
-                name = self._free_name(conn, username_from_email(email))
-                # The address may be on another account linked to a different
-                # Google account (rare: an address moved): then don't store it twice.
-                taken = conn.execute("SELECT 1 FROM users WHERE email = ?", (email,)).fetchone()
+                free = self._free_name(conn, name)
                 conn.execute(
                     "INSERT INTO users (username, password_hash, created_at, last_login, disabled, session_version, "
-                    "email, google_sub) VALUES (?, '', ?, NULL, 0, ?, ?, ?)",
-                    (name, time.time(), secrets.token_urlsafe(9), None if taken else email, sub))
-                row = conn.execute("SELECT * FROM users WHERE username = ?", (name,)).fetchone()
+                    "login_sub) VALUES (?, '', ?, NULL, 0, ?, ?)",
+                    (free, time.time(), secrets.token_urlsafe(9), sub))
                 created = True
-            elif row["email"] != email and not conn.execute(
-                    "SELECT 1 FROM users WHERE email = ? AND username != ?", (email, row["username"])).fetchone():
-                conn.execute("UPDATE users SET email = ? WHERE username = ?", (email, row["username"]))
+                row = conn.execute("SELECT * FROM users WHERE username = ?", (free,)).fetchone()
+            else:
                 row = conn.execute("SELECT * FROM users WHERE username = ?", (row["username"],)).fetchone()
             user = self._row(row)
         if user["disabled"]:
             raise UserError("disabled")
         return user, created
+
+    def unlink_login(self, name: str) -> None:
+        """Forget the login-service user this account is linked to and sign it out
+        everywhere: the next sign-in with this username links again (e.g. after the
+        account was re-created at the login service)."""
+        self._update(name, "login_sub = NULL, session_version = ?", (secrets.token_urlsafe(9),))
 
     @staticmethod
     def _free_name(conn, base: str) -> str:
@@ -201,31 +202,10 @@ class UserStore:
             name = f"{base[:24]}-{n}"
         return name
 
-    def link_google(self, name: str, sub: str, email: str) -> None:
-        """Link a Google account to an existing user (who is signed in) that
-        has NONE yet. An account's Google account is never replaced this way: a
-        stolen session could otherwise attach the thief's Google account and
-        keep the account for good. Relinking goes through the admin (set_email,
-        which unlinks and signs the user out everywhere)."""
-        email, name = normalize_email(email), normalize(name)
-        rec = self.get(name)
-        if rec is None:
-            raise UserError("not_found")
-        if rec["google_sub"] and rec["google_sub"] != sub:
-            raise UserError("already_linked")
-        other = self.by_google(sub)
-        if other is not None and other["username"] != name:
-            raise UserError("google_taken")
-        owner = self.by_email(email)
-        if owner is not None and owner["username"] != name:
-            self._update(name, "google_sub = ?", (sub,))              # the address belongs to someone else
-        else:
-            self._update(name, "google_sub = ?, email = ?", (sub, email))
-
     # ---- changes (admin, tests) ---------------------------------------------------------------
     def create(self, name: str, email: str | None = None) -> dict:
-        """An account without a Google account yet; with ``email`` it is
-        linked on the first Google sign-in with that address."""
+        """An account without a login-service link yet: it is linked on the first
+        sign-in with the same username (``email`` is only kept, never used to link)."""
         name = normalize(name)
         if not USERNAME_RE.fullmatch(name):
             raise UserError("invalid_username")
@@ -243,16 +223,6 @@ class UserStore:
         created = self.get(name)
         assert created is not None
         return created
-
-    def set_email(self, name: str, email: str) -> None:
-        """Set the address a Google account is linked by. This unlinks the
-        current Google account (the next sign-in with the new address links)
-        and signs the user out everywhere."""
-        address = normalize_email(email)
-        owner = self.by_email(address)
-        if owner and owner["username"] != normalize(name):
-            raise UserError("email_taken")
-        self._update(name, "email = ?, google_sub = NULL, session_version = ?", (address, secrets.token_urlsafe(9)))
 
     def set_disabled(self, name: str, disabled: bool) -> None:
         if disabled:   # also sign out everywhere

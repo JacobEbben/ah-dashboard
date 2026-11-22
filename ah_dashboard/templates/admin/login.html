@@ -7,20 +7,25 @@
     {% if error %}<p class="adminmsg error">{{ error }}</p>{% endif %}
     {% if signed_in_user %}
     {# Signed in, but this account has no admin rights (admins go straight to the panel). #}
+    {% if needs_2fa %}
+    <p class="adminmsg error">You're signed in as <strong>{{ signed_in_user }}</strong> without the authenticator code.
+      Admin rights need two-factor authentication: turn it on at the login service, then sign out and in again.</p>
+    {% else %}
     <p class="adminmsg error">You're signed in as <strong>{{ signed_in_user }}</strong>, which has no admin rights.</p>
+    {% endif %}
     <p class="smeta"><a href="{{ url_for('web.index') }}">Back to the dashboard</a></p>
     {% endif %}
-    {% if google and not signed_in_user %}
-    <p class="smeta">Admin users sign in with their Google account.</p>
-    <a class="googlebtn" href="{{ url_for('web.google_start', purpose='admin') }}">{% include "partials/_google_logo.html" %}<span>Sign in with Google</span></a>
+    {% if signin and not signed_in_user %}
+    <p class="smeta">Admin users sign in through the login service, with their authenticator code.</p>
+    <a class="secondary authbtn" href="{{ url_for('web.login_start', purpose='admin') }}">Sign in</a>
     {% endif %}
     {% if password %}
-    {% if google or signed_in_user %}<h2 class="subhead">Admin password</h2>
-    <p class="smeta">The emergency way in, e.g. when Google sign-in isn't available.</p>{% endif %}
+    {% if signin or signed_in_user %}<h2 class="subhead">Admin password</h2>
+    <p class="smeta">The emergency way in, e.g. when the login service isn't available.</p>{% endif %}
     <form method="post" action="{{ url_for('admin.login_post') }}" autocomplete="off">
       <input type="hidden" name="csrf" value="{{ csrf }}">
       <label for="password">Admin password</label>
-      <input id="password" name="password" type="password" required {% if not google %}autofocus{% endif %} autocomplete="current-password">
+      <input id="password" name="password" type="password" required {% if not signin %}autofocus{% endif %} autocomplete="current-password">
       <button type="submit" class="secondary">Log in</button>
     </form>
     {% endif %}

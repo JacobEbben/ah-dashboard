@@ -3,7 +3,7 @@
 The dashboard is open to everyone. Signing in only adds settings sync across
 devices (``/api/prefs``). A user session stores the username, the user's
 ``session_version`` and the sign-in time next to the session id; it ends when
-the version changes (user disabled or deleted, e-mail reset by an admin), after
+the version changes (user disabled, deleted or unlinked by an admin), after
 ``USER_SESSION_DAYS``, or at sign-out (which also removes the session id on
 the server, so a copy of the cookie stops working too).
 """
@@ -22,14 +22,15 @@ from . import csrf, sessions
 SESSION_KEY = "user"
 
 
-def login_user(record: dict) -> None:
+def login_user(record: dict, op_sid: str = "", id_token: str = "", amr: str = "") -> None:
     """Start a fresh session for this user (no session fixation)."""
-    sessions.begin(record["username"])
+    sessions.begin(record["username"], op_sid, id_token, amr)
     session[SESSION_KEY] = {"name": record["username"], "ver": record["session_version"], "at": time.time()}
 
 
-def logout() -> None:
-    sessions.end()
+def logout() -> str:
+    """Sign out here; returns the login-service ID token of this sign-in ('' if none)."""
+    return sessions.end()
 
 
 def current_user() -> str | None:

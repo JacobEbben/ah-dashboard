@@ -3,7 +3,7 @@
 import re
 
 import pytest
-from conftest import enable_google, sign_in
+from conftest import enable_login, sign_in
 from werkzeug.security import generate_password_hash
 
 from ah_dashboard import create_app
@@ -20,7 +20,7 @@ def make_app(tmp_path, fake_client, admin_password=True):
                                if admin_password else None)
     app = create_app(Cfg)
     services(app).ah = fake_client
-    enable_google(app)
+    enable_login(app)
     for name in ("alice", "bob"):
         services(app).users.create(name, f"{name}@example.com")
     return app
@@ -107,10 +107,10 @@ def test_ordinary_user_gets_no_admin_rights(app):
     assert c.get("/admin/").status_code == 302
 
 
-def test_admin_user_can_sign_in_with_google_on_the_admin_page(app):
+def test_admin_user_can_sign_in_on_the_admin_page(app):
     services(app).users.set_admin("alice", True)
     c = app.test_client()
-    assert "/auth/google?purpose=admin" in c.get("/admin/login").get_data(as_text=True)
+    assert "/auth/login?purpose=admin" in c.get("/admin/login").get_data(as_text=True)
     resp = sign_in(c, purpose="admin")
     assert resp.status_code == 302 and resp.headers["Location"].endswith("/admin/")
     assert c.get("/admin/").status_code == 200
@@ -131,7 +131,7 @@ def test_admin_password_failures_lock_out(app):
     assert admin_login(c).status_code == 429                # even the right one now
 
 
-@pytest.mark.parametrize("action", ["demote", "disable", "delete", "email"])
+@pytest.mark.parametrize("action", ["demote", "disable", "delete", "unlink"])
 def test_admin_rights_end_at_once(app, action):
     users = services(app).users
     users.set_admin("alice", True)
@@ -145,7 +145,7 @@ def test_admin_rights_end_at_once(app, action):
     elif action == "delete":
         users.delete("alice")
     else:
-        users.set_email("alice", "elsewhere@example.com")   # relinks: signs out everywhere
+        users.unlink_login("alice")                         # unlinked: signs out everywhere
     assert not is_admin_session(c)
     assert c.get("/admin/").status_code == 302
 
@@ -240,7 +240,7 @@ def test_panel_works_with_only_admin_users(tmp_path, fake_client):
     services(app).users.set_admin("alice", True)
     assert c.get("/admin/login").status_code == 200
     page = c.get("/admin/login").get_data(as_text=True)
-    assert 'name="password"' not in page and "purpose=admin" in page   # only Google: no admin password
+    assert 'name="password"' not in page and "purpose=admin" in page   # only the login service: no admin password
     assert c.post("/admin/login", data={"password": ""}).status_code in (400, 401)
     assert c.get("/admin/").status_code == 302
     sign_in(c, purpose="admin")

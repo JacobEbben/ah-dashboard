@@ -136,13 +136,14 @@ def test_container_holds_every_service():
     app = create_app(TestingConfig)
     svc = services(app)
     assert isinstance(svc, Services)
-    optional = {"google"}                             # None until GOOGLE_CLIENT_ID/SECRET are set
+    optional = {"login"}                              # None until LOGIN_ISSUER/CLIENT_ID/SECRET are set
     for name in Services.__dataclass_fields__:
         assert name in optional or getattr(svc, name) is not None, name
     assert svc.gateway.configured is False            # testing profile: no AH login
-    assert svc.google is None
-    with_google = create_app(TestingConfig, {"GOOGLE_CLIENT_ID": "id", "GOOGLE_CLIENT_SECRET": "secret"})
-    assert services(with_google).google is not None
+    assert svc.login is None
+    with_login = create_app(TestingConfig, {"LOGIN_ISSUER": "https://login.example.nl", "LOGIN_CLIENT_ID": "id",
+                                            "LOGIN_CLIENT_SECRET": "secret-not-real"})
+    assert services(with_login).login is not None
 
 
 def test_testing_profile_starts_no_background_threads():

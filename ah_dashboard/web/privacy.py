@@ -40,7 +40,7 @@ def _summary(name: str) -> dict:
     return {
         "username": name,
         "email": rec.get("email"),
-        "google": bool(rec.get("google_sub")),
+        "linked": bool(rec.get("login_sub")),
         "created_at": rec.get("created_at"),
         "last_login": rec.get("last_login"),
         "is_admin": bool(rec.get("is_admin")),
@@ -52,9 +52,8 @@ def _summary(name: str) -> dict:
     }
 
 
-# Errors shown on the page (data-i18n keys); the Google link sends the last two back here.
-PAGE_ERRORS = frozenset({"deleteConfirmMissing", "deleteConfirmMismatch", "deleteLastAdmin",
-                         "googleTaken", "googleAlreadyLinked", "googleFailed", "loginLocked"})
+# Errors shown on the page (data-i18n keys).
+PAGE_ERRORS = frozenset({"deleteConfirmMissing", "deleteConfirmMismatch", "deleteLastAdmin"})
 
 
 def confirm_word(rec: dict) -> str:
@@ -69,7 +68,7 @@ def _page(error: str | None = None, status: int = 200, deleted: bool = False):
     return render_template(
         "privacy.html", user=user, me=_summary(user) if user else None,
         csrf=csrf.csrf_token() if user else None, error=error, deleted=deleted,
-        google=services().settings.auth.google_enabled,
+        signin=services().login is not None,
         contact=services().settings.app.privacy_contact,
         user_session_days=services().settings.auth.user_session_days,
     ), status
@@ -108,7 +107,7 @@ def privacy_export():
         "account": {
             "username": name,
             "email": rec.get("email"),
-            "google_account_id": rec.get("google_sub"),
+            "login_service_user_id": rec.get("login_sub"),
             "created_at": _iso(rec.get("created_at")),
             "last_sign_in": _iso(rec.get("last_login")),
             "admin": bool(rec.get("is_admin")),
@@ -121,7 +120,7 @@ def privacy_export():
         "active_sign_ins": [{"started_at": _iso(ts)} for ts in s.sessions.started(name)],
         "not_included": [
             "the random ids of your sign-ins (they work like keys)",
-            "no password and no Google tokens are stored",
+            "no password is stored here (it stays at the login service)",
             "settings kept only in your browser and not synced",
         ],
     }

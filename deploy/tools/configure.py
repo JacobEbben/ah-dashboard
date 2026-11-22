@@ -210,7 +210,8 @@ def main() -> int:
 
     print("\n== App settings (Enter keeps the value; '-' clears it) ==")
     for key, question in (("PRIVACY_CONTACT", "Privacy contact shown on /privacy (e-mail or URL)"),
-                          ("GOOGLE_CLIENT_ID", "Google OAuth client id (empty: no Google sign-in)"),
+                          ("LOGIN_ISSUER", "Login service address, e.g. https://login.example.nl (empty: no sign-in)"),
+                          ("LOGIN_CLIENT_ID", "Client id of this app at the login service (e.g. ah-dashboard)"),
                           ("MCP_ENABLED", "MCP endpoint for AI assistants (true/false)"),
                           ("MAX_USERS", "Max. dashboard users")):
         defaults = {"MCP_ENABLED": "true", "MAX_USERS": "1000"}
@@ -229,9 +230,9 @@ def main() -> int:
     admin_hash = ask_admin_password(bool(vault.get("vault_admin_password_hash")))
     if admin_hash:
         vault["vault_admin_password_hash"] = admin_hash
-    if settings.get("GOOGLE_CLIENT_ID") and (
-            value := ask_secret("Google OAuth client secret", bool(vault.get("vault_google_client_secret")))):
-        vault["vault_google_client_secret"] = value
+    if settings.get("LOGIN_CLIENT_ID") and (
+            value := ask_secret("Client secret from the login service", bool(vault.get("vault_login_client_secret")))):
+        vault["vault_login_client_secret"] = value
     print("  The AH login is easiest set later in /admin ('Log in with an AH login code').")
     if value := ask_secret("AH refresh token (optional)", bool(vault.get("vault_ah_refresh_token"))):
         vault["vault_ah_refresh_token"] = value

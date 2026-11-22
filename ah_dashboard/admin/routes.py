@@ -8,7 +8,7 @@ POST /admin/users/email|disable|enable|delete|promote|demote   manage dashboard 
 GET  /admin/errors   recent error log entries, or one by its reference (?ref=)
 POST /admin/lockouts/unlock|clear   lift admin-password lockouts (one key / all)
 
-Admin users sign in with Google (web/google.py, purpose "admin"); their admin
+Admin users sign in through the login service (web/login.py, purpose "admin"); their admin
 rights follow from the account for as long as they are signed in. The admin
 password is the emergency way in, with a timed session of its own.
 """
@@ -21,22 +21,25 @@ import re
 from datetime import datetime
 from urllib.parse import quote
 
-from flask import abort, flash, redirect, render_template, request, url_for
+from flask import abort, current_app, flash, redirect, render_template, request, url_for
 
 from .. import errorlog
 from ..ah.auth import AHAuthError, clean_pasted, login_code, token_kind
 from ..auth import access, csrf, sessions
 from ..auth.admin import (
+    admin_needs_2fa,
     admin_user,
     check_password,
     enabled,
     is_last_admin,
     logged_in,
     password_configured,
+    password_session,
     require_admin,
     start_password_session,
 )
 from ..auth.lockout import ADMIN_PASSWORD_ACCOUNT, admin_policy, login_capacity
+from ..auth.login_client import LoginError, valid_issuer
 from ..auth.users import UserError
 from ..container import services
 from ..logging_setup import log_error
@@ -84,9 +87,9 @@ def _tokens():
     return services().tokens
 
 
-# Messages for errors the Google sign-in sends back here (web/google.py).
-_GOOGLE_ERRORS = {
-    "googleFailed": "Signing in with Google didn't work. Try again.",
+# Messages for errors the sign-in sends back here (web/login.py).
+_SIGNIN_ERRORS = {
+    "loginFailed": "Signing in didn't work. Try again.",
     "accountDisabled": "This account is disabled.",
     "signupFull": "No new accounts can be made right now.",
     "loginLocked": "Too many sign-ins right now. Try again later.",
@@ -96,10 +99,11 @@ _GOOGLE_ERRORS = {
 def _login_page(error: str | None = None, status: int = 200):
     s = services()
     if error is None:
-        error = _GOOGLE_ERRORS.get(request.args.get("error", ""))
+        error = _SIGNIN_ERRORS.get(request.args.get("error", ""))
     # Signed in, but this account has no admin rights (an admin would be in the panel).
     return render_template("admin/login.html", csrf=csrf.csrf_token(), error=error,
-                           signed_in_user=access.current_user(), google=s.settings.auth.google_enabled,
+                           signed_in_user=access.current_user(), signin=s.login is not None,
+                           needs_2fa=admin_needs_2fa(),
                            password=password_configured()), status
 
 
@@ -112,7 +116,7 @@ def login():
 
 @bp.post("/login")
 def login_post():
-    """The admin password (the emergency way in; admin users sign in with Google)."""
+    """The admin password (the emergency way in; admin users sign in through the login service)."""
     csrf.check_form()
     policy = admin_policy()
     if policy.blocked(ADMIN_PASSWORD_ACCOUNT) or not login_capacity():
@@ -132,7 +136,80 @@ def index():
     return render_template("admin/index.html", status=_tokens().status(), csrf=csrf.csrf_token(),
                            users=_users().list(), prefs_sizes=_users().prefs_sizes(), me=admin_user(), health=_health(),
                            ah_login_url=_ah_login_url(), max_users=services().settings.auth.max_users,
-                           lockouts=_lockouts(), error_log=bool(services().settings.app.error_log_file))
+                           lockouts=_lockouts(), error_log=bool(services().settings.app.error_log_file),
+                           login_conn=services().login_connection.config(), login_urls=_login_urls(),
+                           can_change_login=password_session())
+
+
+# ---- the login-service connection (like File Share's admin pane) ------------------------
+def _login_urls() -> dict:
+    """What to register for this app at the login service."""
+    base = services().settings.auth.public_base_url or request.host_url.rstrip("/")
+    return {"redirect": base + url_for("web.login_callback"), "logout": base + url_for("web.index"),
+            "backchannel": base + url_for("web.backchannel_logout")}
+
+
+def _password_admin_only() -> None:
+    """Only the admin password may change where sign-ins are checked: an admin who
+    signed in THROUGH the login service must not be able to swap it for another one."""
+    if not password_session():
+        abort(403)
+
+
+def _production() -> bool:
+    return not (current_app.config.get("TESTING") or current_app.config.get("DEBUG"))
+
+
+@bp.post("/login-service")
+@require_admin
+def save_login_service():
+    _password_admin_only()
+    conn = services().login_connection
+    issuer = request.form.get("issuer", "").strip().rstrip("/")
+    client_id = request.form.get("client_id", "").strip()
+    secret = request.form.get("client_secret", "").strip() or None
+    current = conn.config()
+    if (not valid_issuer(issuer, _production()) or not 0 < len(client_id) <= 200 or (secret and len(secret) > 500)
+            or (secret is None and not (current and current["has_secret"]))):
+        flash("Fill in a valid issuer URL (https), the client id and the client secret.", "error")
+        return redirect(url_for("admin.index") + "#login-service")
+    try:
+        conn.test(issuer)
+    except LoginError as exc:
+        log.warning("login service %s not saved: %s", issuer, exc.reason)
+        flash("The login service could not be reached or answered unexpectedly; nothing was saved.", "error")
+        return redirect(url_for("admin.index") + "#login-service")
+    conn.save(issuer, client_id, secret, "admin password")
+    log.info("login-service connection set to %s (client %s) by admin from %s", issuer, client_id, request.remote_addr)
+    flash("Login service saved and reachable. Sign in once to check the client id and secret.", "ok")
+    return redirect(url_for("admin.index") + "#login-service")
+
+
+@bp.post("/login-service/test")
+@require_admin
+def test_login_service():
+    _password_admin_only()
+    c = services().login_connection.config()
+    if not c or not c["issuer"]:
+        flash("No login service is configured.", "error")
+    else:
+        try:
+            services().login_connection.test(c["issuer"])
+            flash("The login service answers and its keys are valid.", "ok")
+        except LoginError as exc:
+            log.warning("login service test failed: %s", exc.reason)
+            flash("The login service could not be reached or answered unexpectedly.", "error")
+    return redirect(url_for("admin.index") + "#login-service")
+
+
+@bp.post("/login-service/disconnect")
+@require_admin
+def disconnect_login_service():
+    _password_admin_only()
+    services().login_connection.clear()
+    log.info("login-service connection from the admin panel removed by admin from %s", request.remote_addr)
+    flash("The panel's login-service connection is removed (LOGIN_* settings apply again, if set).", "ok")
+    return redirect(url_for("admin.index") + "#login-service")
 
 
 def _ah_login_url() -> str:
@@ -180,16 +257,17 @@ def _user_action(action, ok_message: str):
     return redirect(url_for("admin.index") + "#users")
 
 
-@bp.post("/users/email")
+@bp.post("/users/unlink")
 @require_admin
-def set_user_email():
-    """Set the e-mail address a Google account is linked by (e.g. for an
-    account from before Google sign-in). Unlinks the current Google account."""
-    email = request.form.get("email", "")[:320]
-    def set_email(name):
-        _users().set_email(name, email)
-        log.info("e-mail address of dashboard user %r changed by admin from %s", name.strip().lower(), request.remote_addr)
-    return _user_action(set_email, "E-mail address of {name} set; they are signed out and link on their next Google sign-in.")
+def unlink_user():
+    """Forget which login-service user an account is linked to (e.g. after that
+    account was re-created there); signs it out everywhere. The next sign-in with
+    the same username links again."""
+    def unlink(name):
+        _users().unlink_login(name)
+        log.info("dashboard user %r unlinked from its login-service account by admin from %s",
+                 name.strip().lower(), request.remote_addr)
+    return _user_action(unlink, "{name} is unlinked and signed out; the next sign-in with that username links again.")
 
 
 @bp.post("/users/disable")

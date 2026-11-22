@@ -2,12 +2,14 @@
 
 Two ways to have them:
 
-- **A signed-in admin user** (Google sign-in, ``is_admin`` on the account).
+- **A signed-in admin user** (sign-in through the login service, ``is_admin`` on
+  the account; with REQUIRE_ADMIN_2FA only in a sign-in made WITH the
+  authenticator code there).
   Admin rights are not a separate session: they follow from the account on
   every request (``admin_user()``), for as long as the user is signed in
   (USER_SESSION_DAYS). Demoting, disabling, deleting or signing out ends them
   at once; promoting gives them at once.
-- **The admin password**, the emergency way in (e.g. when Google sign-in is
+- **The admin password**, the emergency way in (e.g. when the login service is
   unavailable): checked against ADMIN_PASSWORD_HASH (werkzeug hash, scrypt by
   default; the plain password is never stored). It opens a session of its own
   that ends after ADMIN_SESSION_MINUTES without admin activity (``touch()``)
@@ -88,10 +90,10 @@ def start_password_session() -> None:
     session[_PW_KEY] = _current_fingerprint()
 
 
-def start_user_session(record: dict) -> None:
-    """Sign a user in (Google). Admin rights are not part of the session: they
-    follow from the account on every request (``admin_user``)."""
-    access.login_user(record)
+def start_user_session(record: dict, op_sid: str = "", id_token: str = "", amr: str = "") -> None:
+    """Sign a user in (login service). Admin rights are not part of the session:
+    they follow from the account on every request (``admin_user``)."""
+    access.login_user(record, op_sid, id_token, amr)
 
 
 def is_last_admin(name: str) -> bool:
@@ -111,8 +113,22 @@ def admin_user() -> str | None:
     name = access.current_user()          # also checks the sign-in is listed and current
     if name is None:
         return None
-    rec = services().users.get(name)
-    return name if rec and rec["is_admin"] and not rec["disabled"] else None
+    s = services()
+    rec = s.users.get(name)
+    if not rec or not rec["is_admin"] or rec["disabled"]:
+        return None
+    # A phished password alone must not give admin rights: only a sign-in made with
+    # the authenticator code at the login service counts (REQUIRE_ADMIN_2FA).
+    if s.settings.auth.require_admin_2fa and "otp" not in sessions.current_amr().split():
+        return None
+    return name
+
+
+def admin_needs_2fa() -> bool:
+    """An admin account signed in WITHOUT the authenticator code (shown as a notice)."""
+    name = access.current_user()
+    rec = services().users.get(name) if name else None
+    return bool(rec and rec["is_admin"] and not rec["disabled"] and admin_user() is None)
 
 
 def drop() -> None:
@@ -151,6 +167,11 @@ def _password_session() -> bool:
     fingerprint = session.get(_PW_KEY)
     return (isinstance(fingerprint, str) and _within_limits(time.time()) and password_configured()
             and same_secret(fingerprint, _current_fingerprint()) and sessions.listed(None))
+
+
+def password_session() -> bool:
+    """Is this request signed in with the admin password (not as an admin user)?"""
+    return enabled() and _password_session()
 
 
 def logged_in() -> bool:

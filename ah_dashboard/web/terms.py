@@ -18,7 +18,7 @@ from ..container import services
 from . import bp
 
 # The date of the current version of the terms (shown on the page).
-TERMS_UPDATED = date(2026, 11, 19)
+TERMS_UPDATED = date(2026, 11, 22)
 
 # Spelled out: strftime("%B") would follow the server's locale.
 _MONTHS_NL = ("januari", "februari", "maart", "april", "mei", "juni", "juli", "augustus",

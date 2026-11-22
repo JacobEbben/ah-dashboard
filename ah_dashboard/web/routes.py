@@ -32,7 +32,7 @@ def index():
     admin_link = admin.enabled() and admin.logged_in()
     return render_template("index.html", client_config=client_config,
                            user=user, csrf=client_config["csrf"], admin_link=admin_link,
-                           signin=s.settings.auth.google_enabled)
+                           signin=s.login is not None)
 
 
 @bp.get("/favicon.ico")
@@ -50,10 +50,10 @@ def healthz():
 
 
 # ---- sign in / out --------------------------------------------------------------------
-# Sign-in is Google's (web/google.py): the header's button goes straight there.
+# Sign-in is the login service's (web/login.py): the header's button goes straight there.
 # /login only shows a page when there is something to say (a failed sign-in,
-# or no Google sign-in on this server); otherwise it sends the browser on to Google.
-LOGIN_ERRORS = frozenset({"googleFailed", "accountDisabled", "signupFull", "loginLocked"})
+# or no sign-in configured on this server); otherwise it sends the browser on to the login service.
+LOGIN_ERRORS = frozenset({"loginFailed", "accountDisabled", "signupFull", "loginLocked"})
 
 
 @bp.get("/login")
@@ -61,14 +61,22 @@ def login() -> ResponseReturnValue:
     if access.current_user():
         return redirect(url_for("web.index"))
     error = request.args.get("error")
-    google = services().settings.auth.google_enabled
-    if google and error not in LOGIN_ERRORS:
-        return redirect(url_for("web.google_start"))
-    return render_template("login.html", error=error if error in LOGIN_ERRORS else None, google=google)
+    enabled = services().login is not None
+    if enabled and error not in LOGIN_ERRORS:
+        return redirect(url_for("web.login_start"))
+    return render_template("login.html", error=error if error in LOGIN_ERRORS else None, signin=enabled)
 
 
 @bp.post("/logout")
 def logout_post():
     csrf.check_form()
-    access.logout()
+    id_token = access.logout()
+    # Also sign out at the login service (its own confirmation page, then back here),
+    # so the next "sign in" really asks for the password again.
+    login = services().login
+    if id_token and login is not None:
+        from .login import base_url
+        url = login.end_session_url(id_token, base_url() + url_for("web.index"))
+        if url:
+            return redirect(url)
     return redirect(url_for("web.index"))

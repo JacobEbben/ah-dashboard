@@ -133,32 +133,37 @@ class BaseConfig:
     ADMIN_LOCKOUT_SECONDS = 900           # ... within this window
     # Failed sign-ins per account (any address) within the lockout window: stops
     # password guessing spread over many addresses. Only the admin password has
-    # one (users sign in with Google and have no password).
+    # one (users sign in through the login service and have no password here).
     ACCOUNT_MAX_FAILURES = 20
     # Admin-password attempts per minute for the whole server (all clients),
     # checked before the expensive password hash. 0 = off.
     LOGIN_ATTEMPTS_PER_MINUTE = 60
-    # Google sign-ins started per minute per client (IPv4 address / IPv6 /64).
+    # Sign-ins started per minute per client (IPv4 address / IPv6 /64).
     # Per client on purpose: a server-wide budget would let anyone block every
     # sign-in by starting them in a loop. 0 = off.
-    GOOGLE_SIGNIN_PER_MINUTE = 10
+    LOGIN_SIGNIN_PER_MINUTE = 10
     # Settings uploads (PUT /api/prefs) per minute per signed-in user. 0 = off.
     PREFS_WRITES_PER_MINUTE = 60
     # Send the session cookie over HTTPS only (and send HSTS). Set true when
     # served via HTTPS; production logs a warning while it is off.
     ADMIN_COOKIE_SECURE = False
 
-    # --- Dashboard users: sign in with Google --------------------------------------
+    # --- Dashboard users: sign in through the central login service ------------------
     # Signing in is optional: it only syncs a user's settings across devices.
-    # Anyone with a (verified) Google account can sign in; the first sign-in
-    # creates the account. Without a client id/secret there is no sign-in
-    # (the admin password still opens the admin panel).
-    GOOGLE_CLIENT_ID: str | None = None
-    GOOGLE_CLIENT_SECRET: str | None = None
-    # The site's public address, e.g. https://ah.example.nl (no path). Google
-    # sends users back to <PUBLIC_BASE_URL>/auth/google/callback, which must be
-    # listed in the Google OAuth client. Unset: taken from the request (fine
-    # locally on http://127.0.0.1:8733; set it behind a proxy).
+    # Anyone with an account at the login service (OpenID Connect, e.g.
+    # https://login.jacobebben.nl) can sign in; the first sign-in creates the
+    # account here. Without issuer/client id/secret there is no sign-in (the
+    # admin password still opens the admin panel). Register this app there with
+    # redirect URI <PUBLIC_BASE_URL>/auth/callback, post-logout URI
+    # <PUBLIC_BASE_URL>/ and back-channel logout URI <PUBLIC_BASE_URL>/auth/backchannel-logout.
+    LOGIN_ISSUER: str | None = None
+    LOGIN_CLIENT_ID: str | None = None
+    LOGIN_CLIENT_SECRET: str | None = None
+    # Admin rights only in a sign-in made WITH the authenticator code at the login service.
+    REQUIRE_ADMIN_2FA = True
+    # The site's public address, e.g. https://ah.example.nl (no path): the return
+    # address for the login service is built from it. Unset: taken from the
+    # request (fine locally on http://127.0.0.1:8733; set it behind a proxy).
     PUBLIC_BASE_URL: str | None = None
     MAX_USERS = 1000                      # new accounts are refused beyond this
     DATABASE_FILE: str | None = None      # default: instance/ah_dashboard.db; "" = in memory
@@ -206,7 +211,7 @@ class TestingConfig(BaseConfig):
     RATE_LIMIT_BONUS = 0
     RATE_LIMIT_MCP = 0
     LOGIN_ATTEMPTS_PER_MINUTE = 0
-    GOOGLE_SIGNIN_PER_MINUTE = 0
+    LOGIN_SIGNIN_PER_MINUTE = 0
 
 
 _PROFILES: dict[str, type[BaseConfig]] = {
@@ -297,12 +302,17 @@ def validate(config: Mapping[str, Any]) -> None:
     for key in ("AH_GRAPHQL_URL", "AH_AUTH_REFRESH_URL", "AH_REST_URL"):
         if not str(config.get(key, "")).lower().startswith("https://"):
             raise ValueError(f"{key} must be an https:// URL")
-    # Google sends the sign-in code to this address: only http(s), no path.
+    # The login service sends the sign-in code to this address: only http(s), no path.
     base = str(config.get("PUBLIC_BASE_URL") or "").strip().rstrip("/")
     if base and not re.fullmatch(r"https?://[A-Za-z0-9.\-]+(:\d{1,5})?", base):
         raise ValueError("PUBLIC_BASE_URL must look like https://ah.example.nl (no path)")
-    if bool(config.get("GOOGLE_CLIENT_ID")) != bool(config.get("GOOGLE_CLIENT_SECRET")):
-        raise ValueError("Set both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET, or neither")
+    login = [bool(str(config.get(k) or "").strip()) for k in ("LOGIN_ISSUER", "LOGIN_CLIENT_ID", "LOGIN_CLIENT_SECRET")]
+    if any(login) and not all(login):
+        raise ValueError("Set LOGIN_ISSUER, LOGIN_CLIENT_ID and LOGIN_CLIENT_SECRET together, or none")
+    issuer = str(config.get("LOGIN_ISSUER") or "").strip()
+    if issuer and not re.fullmatch(r"https://[A-Za-z0-9.\-]+(:\d{1,5})?(/[A-Za-z0-9._~/-]*)?", issuer) \
+            and not (config.get("TESTING") or re.fullmatch(r"http://(127\.0\.0\.1|localhost)(:\d{1,5})?", issuer)):
+        raise ValueError("LOGIN_ISSUER must be an https:// address (e.g. https://login.example.nl)")
 
 
 # ---- typed, grouped settings ---------------------------------------------------------------
@@ -360,7 +370,7 @@ class LimitSettings:
     unknown_stores_total: int
     unknown_stores_window: int
     login_attempts_per_minute: int
-    google_signin_per_minute: int
+    login_signin_per_minute: int
     prefs_writes_per_minute: int
 
     def endpoint(self, name: str) -> RateLimit:
@@ -378,14 +388,16 @@ class AuthSettings:
     account_max_failures: int
     cookie_secure: bool
     user_session_days: int
-    google_client_id: str | None
-    google_client_secret: str | None
+    login_issuer: str | None
+    login_client_id: str | None
+    login_client_secret: str | None
+    require_admin_2fa: bool
     public_base_url: str | None
     max_users: int
 
     @property
-    def google_enabled(self) -> bool:
-        return bool(self.google_client_id and self.google_client_secret)
+    def login_enabled(self) -> bool:
+        return bool(self.login_issuer and self.login_client_id and self.login_client_secret)
 
 
 @dataclass(frozen=True)
@@ -437,7 +449,7 @@ class Settings:
                 unknown_stores_total=int(c["UNKNOWN_STORES_TOTAL"]),
                 unknown_stores_window=int(c["UNKNOWN_STORES_WINDOW"]),
                 login_attempts_per_minute=int(c["LOGIN_ATTEMPTS_PER_MINUTE"]),
-                google_signin_per_minute=int(c["GOOGLE_SIGNIN_PER_MINUTE"]),
+                login_signin_per_minute=int(c["LOGIN_SIGNIN_PER_MINUTE"]),
                 prefs_writes_per_minute=int(c["PREFS_WRITES_PER_MINUTE"])),
             auth=AuthSettings(
                 admin_password_hash=c["ADMIN_PASSWORD_HASH"] or None,
@@ -448,8 +460,10 @@ class Settings:
                 account_max_failures=int(c["ACCOUNT_MAX_FAILURES"]),
                 cookie_secure=bool(c["ADMIN_COOKIE_SECURE"]),
                 user_session_days=int(c["USER_SESSION_DAYS"]),
-                google_client_id=(c["GOOGLE_CLIENT_ID"] or "").strip() or None,
-                google_client_secret=(c["GOOGLE_CLIENT_SECRET"] or "").strip() or None,
+                login_issuer=(c["LOGIN_ISSUER"] or "").strip().rstrip("/") or None,
+                login_client_id=(c["LOGIN_CLIENT_ID"] or "").strip() or None,
+                login_client_secret=(c["LOGIN_CLIENT_SECRET"] or "").strip() or None,
+                require_admin_2fa=bool(c["REQUIRE_ADMIN_2FA"]),
                 public_base_url=(c["PUBLIC_BASE_URL"] or "").strip().rstrip("/") or None,
                 max_users=int(c["MAX_USERS"])),
             app=AppSettings(

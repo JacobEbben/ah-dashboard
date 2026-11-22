@@ -14,7 +14,7 @@ def text_of(resp) -> str:
 
 
 def test_footer_links_to_the_terms_on_every_page(client):
-    for path in ("/", "/login?error=googleFailed", "/privacy", "/voorwaarden"):
+    for path in ("/", "/login?error=loginFailed", "/privacy", "/voorwaarden"):
         page = client.get(path).get_data(as_text=True)
         assert 'href="/voorwaarden"' in page and 'href="/privacy"' in page, path
 

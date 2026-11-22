@@ -15,8 +15,9 @@ from flask import Flask, current_app
 if TYPE_CHECKING:
     from .ah.auth import TokenManager
     from .ah.gateway import AHApi, AHGateway
-    from .auth.google import GoogleSignIn
     from .auth.lockout import LoginLimiter
+    from .auth.login_client import LoginClient
+    from .auth.login_connection import LoginConnection
     from .auth.sessions import SessionStore
     from .auth.users import UserStore
     from .config import Settings
@@ -43,13 +44,24 @@ class Services:
     scheduler: Scheduler             # background jobs and tasks
     rate_limiter: RateLimiter        # per-client API limits and load budgets
     admin_limiter: LoginLimiter      # failed admin-password sign-ins
-    google: GoogleSignIn | None      # Google sign-in (None: not configured; tests: a fake)
+    login_connection: LoginConnection  # the login-service connection (admin panel, else LOGIN_* settings)
     known_stores: KnownStores        # store ids that may be loaded freely
     bargains_cache: TTLCache         # bargains per store
     stores_cache: TTLCache           # store searches per postal code
     bonus_cache: WeekCache           # this week's national Bonus
     bonus_next_cache: WeekCache      # next week's national Bonus, once AH publishes it
     bonus_next_status: NextWeekStatus  # is next week's Bonus published yet (the "Next week" button)
+
+    @property
+    def login(self) -> LoginClient | None:
+        """The sign-in client for the current login-service connection (None: not configured).
+        Tests may assign a client directly (``services(app).login = ...``)."""
+        override = self.__dict__.get("_login_override")
+        return override if override is not None else self.login_connection.client()
+
+    @login.setter
+    def login(self, client: LoginClient | None) -> None:
+        self.__dict__["_login_override"] = client
 
     @property
     def gateway(self) -> AHGateway:

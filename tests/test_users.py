@@ -1,4 +1,4 @@
-"""Dashboard users: the store, Google sign-in/out, the login gate and the admin pages."""
+"""Dashboard users: the store, sign-in/out through the login service, the login gate and the admin pages."""
 
 import json
 import re
@@ -6,7 +6,7 @@ import sqlite3
 import time
 
 import pytest
-from conftest import enable_google, google_sign_in, sign_in
+from conftest import enable_login, login_sign_in, sign_in
 from werkzeug.security import generate_password_hash
 
 from ah_dashboard import create_app
@@ -48,54 +48,45 @@ def test_store_rules():
         store.delete("nobody")
 
 
-def test_google_sign_in_creates_finds_and_links():
+def test_login_sign_in_creates_finds_and_links():
     store = UserStore()
-    user, created = store.sign_in_google("g-1", "Jan.Jansen+ah@Gmail.com")
-    assert created and user["username"] == "jan.jansen.ah" and user["email"] == "jan.jansen+ah@gmail.com"
-    again, created = store.sign_in_google("g-1", "jan.jansen+ah@gmail.com")
-    assert not created and again["username"] == user["username"]          # matched by Google id
-    moved, _ = store.sign_in_google("g-1", "new@example.com")
-    assert moved["username"] == user["username"] and moved["email"] == "new@example.com"   # address followed
-    # An account from before Google sign-in is linked by its e-mail address.
+    user, created = store.sign_in_login("sub-1", "Jan.Jansen")
+    assert created and user["username"] == "jan.jansen" and user["login_sub"] == "sub-1"
+    again, created = store.sign_in_login("sub-1", "jan.jansen")
+    assert not created and again["username"] == user["username"]          # matched by the login-service id
+    # An account from before (Google era, or made by the admin) is linked by its username, once.
     store.create("old", "old@example.com")
-    linked, created = store.sign_in_google("g-2", "OLD@example.com")
-    assert not created and linked["username"] == "old" and store.get("old")["google_sub"] == "g-2"
-    # The same address with ANOTHER Google account doesn't take over the linked account.
-    other, created = store.sign_in_google("g-3", "old@example.com")
-    assert created and other["username"] != "old" and other["email"] is None
-    # Same local part: a free name.
-    twin, _ = store.sign_in_google("g-4", "jan.jansen+ah@example.org")
-    assert twin["username"] == "jan.jansen.ah-2"
+    linked, created = store.sign_in_login("sub-2", "OLD")
+    assert not created and linked["username"] == "old" and store.get("old")["login_sub"] == "sub-2"
+    # The same username with ANOTHER login-service user doesn't take over the linked account.
+    other, created = store.sign_in_login("sub-3", "old")
+    assert created and other["username"] == "old-2" and store.get("old")["login_sub"] == "sub-2"
+    with pytest.raises(UserError) as exc:
+        store.sign_in_login("sub-4", "x")                                  # not a valid username
+    assert exc.value.code == "invalid_username"
 
 
-def test_google_sign_in_refusals():
+def test_login_sign_in_refusals():
     store = UserStore(max_users=1)
-    store.sign_in_google("g-1", "a@example.com")
+    store.sign_in_login("sub-1", "anna")
     with pytest.raises(UserError) as exc:
-        store.sign_in_google("g-2", "b@example.com")
+        store.sign_in_login("sub-2", "bert")
     assert exc.value.code == "too_many"
-    store.set_disabled(store.by_google("g-1")["username"], True)
+    store.set_disabled("anna", True)
     with pytest.raises(UserError) as exc:
-        store.sign_in_google("g-1", "a@example.com")
+        store.sign_in_login("sub-1", "anna")
     assert exc.value.code == "disabled"
 
 
-def test_link_google_and_set_email():
+def test_unlink_login():
     store = UserStore()
-    store.create("alice")
-    store.create("bob")
-    store.link_google("alice", "g-1", "alice@example.com")
-    assert store.get("alice")["google_sub"] == "g-1"
-    with pytest.raises(UserError) as exc:
-        store.link_google("bob", "g-1", "bob@example.com")
-    assert exc.value.code == "google_taken"
+    store.sign_in_login("sub-1", "alice")
     version = store.get("alice")["session_version"]
-    store.set_email("alice", "Alice@New.example")
+    store.unlink_login("alice")
     rec = store.get("alice")
-    assert rec["email"] == "alice@new.example" and rec["google_sub"] is None and rec["session_version"] != version
-    with pytest.raises(UserError) as exc:
-        store.set_email("bob", "alice@new.example")
-    assert exc.value.code == "email_taken"
+    assert rec["login_sub"] is None and rec["session_version"] != version   # signed out everywhere
+    relinked, created = store.sign_in_login("sub-9", "alice")             # e.g. re-created at the login service
+    assert not created and relinked["login_sub"] == "sub-9"
 
 
 @pytest.mark.parametrize("email, name", [("jo@x.nl", "jouser"), ("@x.nl", "user"), ("Ann!e..B@x.nl", "ann.e..b")])
@@ -116,7 +107,30 @@ def test_database_from_before_google_is_upgraded(tmp_path):
     db = Database(path)
     row = db.one("SELECT * FROM users")
     assert row["password_hash"] == "" and row["email"] is None and row["google_sub"] is None and row["is_admin"] == 1
-    assert db.scalar("PRAGMA user_version") == 3
+    assert row["login_sub"] is None
+    assert db.scalar("PRAGMA user_version") == 4
+
+
+def test_google_era_database_is_upgraded_and_its_sign_ins_end(tmp_path):
+    path = str(tmp_path / "v3.db")
+    conn = sqlite3.connect(path)
+    conn.executescript("""
+        CREATE TABLE users (username TEXT PRIMARY KEY, password_hash TEXT NOT NULL, created_at REAL NOT NULL,
+            last_login REAL, disabled INTEGER NOT NULL DEFAULT 0, session_version TEXT NOT NULL,
+            is_admin INTEGER NOT NULL DEFAULT 0, email TEXT, google_sub TEXT);
+        CREATE TABLE sessions (id TEXT PRIMARY KEY, username TEXT REFERENCES users(username) ON DELETE CASCADE,
+            created_at REAL NOT NULL);
+        INSERT INTO users VALUES ('jacob', '', 1, NULL, 0, 'v1', 1, 'j@example.com', 'g-1');
+        INSERT INTO sessions VALUES ('s1', 'jacob', 1e10);
+        INSERT INTO sessions VALUES ('s2', NULL, 1e10);
+        PRAGMA user_version = 3;""")
+    conn.close()
+    db = Database(path)
+    assert db.scalar("PRAGMA user_version") == 4
+    row = db.one("SELECT * FROM users")
+    assert row["username"] == "jacob" and row["login_sub"] is None and row["google_sub"] == "g-1"   # kept, unused
+    assert [r["id"] for r in db.query("SELECT id FROM sessions")] == ["s2"]   # Google sign-ins ended; admin password kept
+    assert {"op_sid", "id_token", "amr"} <= {r[1] for r in db.query("PRAGMA table_info(sessions)")}
 
 
 # ---- app: sign-in is optional ---------------------------------------------------------------
@@ -127,7 +141,7 @@ def app(tmp_path, fake_client):
         ADMIN_PASSWORD_HASH = generate_password_hash(ADMIN_PW, method="pbkdf2:sha256:1000")
     app = create_app(Cfg)
     services(app).ah = fake_client
-    enable_google(app)
+    enable_login(app)
     services(app).users.create("alice", "alice@example.com")
     return app
 
@@ -148,7 +162,7 @@ def test_dashboard_is_open_without_signing_in(app):
     c = app.test_client()
     page = c.get("/")
     html = page.get_data(as_text=True)
-    assert page.status_code == 200 and 'href="/auth/google"' in html and 'data-i18n="signInGoogle"' in html   # straight to Google
+    assert page.status_code == 200 and 'href="/auth/login"' in html and 'data-i18n="signInLogin"' in html   # straight to the login service
     assert c.post("/api/bargains", json={"stores": [{"id": 1002}]}).status_code == 200
     assert c.get("/api/bonus").status_code != 401
     cfg = config_of(c)
@@ -160,10 +174,10 @@ def test_dashboard_is_open_without_signing_in(app):
 def test_sign_in_and_out(app):
     c = app.test_client()
     page = c.get("/login")
-    assert page.status_code == 302 and page.headers["Location"].endswith("/auth/google")   # no page in between
-    failed = c.get("/login?error=googleFailed")                # after a failed sign-in: a page to retry from
+    assert page.status_code == 302 and page.headers["Location"].endswith("/auth/login")   # no page in between
+    failed = c.get("/login?error=loginFailed")                # after a failed sign-in: a page to retry from
     html = failed.get_data(as_text=True)
-    assert 'data-i18n="googleFailed"' in html and "/auth/google" in html and "Set-Cookie" not in failed.headers
+    assert 'data-i18n="loginFailed"' in html and "/auth/login" in html and "Set-Cookie" not in failed.headers
     resp = sign_in(c)
     assert resp.status_code == 302 and resp.headers["Location"].endswith("/")
     page = c.get("/").get_data(as_text=True)
@@ -173,28 +187,30 @@ def test_sign_in_and_out(app):
     assert c.get("/login").status_code == 302                # already signed in
     assert c.post("/logout").status_code == 400              # sign-out needs the CSRF token
     resp = c.post("/logout", data={"csrf": csrf_of(page)})
-    assert resp.status_code == 302 and resp.headers["Location"].endswith("/")   # back to the dashboard
+    # Also signed out at the login service: its confirmation page, then back to the dashboard.
+    assert resp.status_code == 302 and resp.headers["Location"].startswith("https://login.test/logout?id_token_hint=")
+    assert "post_logout_redirect_uri=http%3A%2F%2Flocalhost%2F" in resp.headers["Location"]
     assert config_of(c)["user"] is None
 
 
-def test_first_google_sign_in_creates_an_account(app):
+def test_first_sign_in_creates_an_account(app):
     c = app.test_client()
-    resp = google_sign_in(c, "g-new", "New.Person@example.com")
+    resp = login_sign_in(c, "sub-new", "new.person")
     assert resp.status_code == 302 and resp.headers["Location"].endswith("/")
     assert config_of(c)["user"] == "new.person"
     rec = services(app).users.get("new.person")
-    assert rec["email"] == "new.person@example.com" and rec["google_sub"] == "g-new" and rec["last_login"]
+    assert rec["login_sub"] == "sub-new" and rec["email"] is None and rec["last_login"]
 
 
-def test_no_sign_in_without_google(tmp_path, fake_client):
+def test_no_sign_in_without_the_login_service(tmp_path, fake_client):
     class Cfg(TestingConfig):
         DATABASE_FILE = str(tmp_path / "app.db")
     app = create_app(Cfg)
     c = app.test_client()
     html = c.get("/").get_data(as_text=True)
-    assert 'href="/auth/google"' not in html and 'href="/login"' not in html   # no Login button
+    assert 'href="/auth/login"' not in html and 'href="/login"' not in html   # no Login button
     assert 'data-i18n="signInUnavailable"' in c.get("/login").get_data(as_text=True)
-    assert c.get("/auth/google").status_code == 404
+    assert c.get("/auth/login").status_code == 404
     assert c.post("/login").status_code == 405                               # no password sign-in any more
 
 
@@ -208,13 +224,13 @@ def test_new_session_on_sign_in(app):
         assert "planted" not in sess and sess["user"]["name"] == "alice"
 
 
-@pytest.mark.parametrize("action", ["email", "disable", "delete"])
+@pytest.mark.parametrize("action", ["unlink", "disable", "delete"])
 def test_admin_changes_end_existing_sessions(app, action):
     c = app.test_client()
     sign_in(c)
     assert c.get("/api/prefs").status_code == 200
     users = services(app).users
-    {"email": lambda: users.set_email("alice", "elsewhere@example.com"),
+    {"unlink": lambda: users.unlink_login("alice"),
      "disable": lambda: users.set_disabled("alice", True),
      "delete": lambda: users.delete("alice")}[action]()
     assert c.get("/api/prefs").status_code == 401
@@ -307,20 +323,18 @@ def test_admin_manages_users(app):
     c, token = admin_client(app)
     users = services(app).users
     users.create("bob")
-    page = c.post("/admin/users/email", data={"csrf": token, "username": "bob", "email": "Bob@Example.com"},
-                  follow_redirects=True).get_data(as_text=True)
-    assert "E-mail address of bob set" in page and users.get("bob")["email"] == "bob@example.com"
-    page = c.post("/admin/users/email", data={"csrf": token, "username": "bob", "email": "alice@example.com"},
-                  follow_redirects=True).get_data(as_text=True)
-    assert "Another user already has that e-mail address." in page
-    # Bob's first Google sign-in with that address links his account.
+    # Bob's first sign-in with that username links his account.
     bob = app.test_client()
-    google_sign_in(bob, "g-bob", "bob@example.com")
-    assert config_of(bob)["user"] == "bob" and users.get("bob")["google_sub"] == "g-bob"
+    login_sign_in(bob, "sub-bob", "bob")
+    assert config_of(bob)["user"] == "bob" and users.get("bob")["login_sub"] == "sub-bob"
+    page = c.post("/admin/users/unlink", data={"csrf": token, "username": "bob"},
+                  follow_redirects=True).get_data(as_text=True)
+    assert "bob is unlinked" in page and users.get("bob")["login_sub"] is None and config_of(bob)["user"] is None
+    login_sign_in(bob, "sub-bob", "bob")
 
     c.post("/admin/users/disable", data={"csrf": token, "username": "bob"})
     assert users.get("bob")["disabled"] and config_of(bob)["user"] is None
-    assert "error=accountDisabled" in google_sign_in(bob, "g-bob", "bob@example.com").headers["Location"]
+    assert "error=accountDisabled" in login_sign_in(bob, "sub-bob", "bob").headers["Location"]
     c.post("/admin/users/enable", data={"csrf": token, "username": "bob"})
     assert not users.get("bob")["disabled"]
 

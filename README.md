@@ -5,11 +5,12 @@ A small Flask web app that shows two kinds of Albert Heijn (AH) offers:
 - **Bargains** – the "Laatste Kans Koopjes" (last-chance markdowns near their best-before date) of the stores you pick, from AH's GraphQL `bargainItems`.
 - **Bonus** – this week's national Bonus deals, from AH's REST bonus pages (plus a GraphQL `bonusPromotions` lookup for group deals).
 
-The server talks to AH with **one AH login configured by the operator**. Visitors need no AH account and no token; the dashboard is open to everyone. Signing in (with Google) is optional and only syncs a visitor's settings between devices.
+The server talks to AH with **one AH login configured by the operator**. Visitors need no AH account and no token; the dashboard is open to everyone. Signing in (through the central login service, e.g. `login.jacobebben.nl`) is optional and only syncs a visitor's settings between devices.
 
 It also offers an admin panel (`/admin`), a privacy page with data export/delete (`/privacy`), terms of use (`/voorwaarden`), and a read-only MCP endpoint (`/mcp`) for AI assistants.
 
 ---
+
 
 ## Features
 
@@ -36,10 +37,10 @@ It also offers an admin panel (`/admin`), a privacy page with data export/delete
 - Dutch and English UI, light theme by default with a dark theme to switch to (never automatic), cards-per-row slider (Auto or 1–8).
 
 ### Accounts, admin, privacy, MCP
-- **Optional Google sign-in** (OpenID Connect, code flow with PKCE, scopes `openid email`). It syncs a whitelisted set of settings via `/api/prefs`. When two devices both changed settings, liked/hidden lists and presets are merged.
+- **Optional sign-in through the central login service** (`../login-service`; OpenID Connect, code flow with PKCE, scopes `openid profile`). It syncs a whitelisted set of settings via `/api/prefs`. When two devices both changed settings, liked/hidden lists and presets are merged.
 - **Admin panel**: the AH login (paste tokens, or log in with an AH login code that the server exchanges), renewing the token, managing dashboard users (set e-mail, promote/demote, enable/disable, delete), looking up error references, lifting login lockouts, and server health.
 - **Terms of use** (`/voorwaarden`, Dutch and English): not affiliated with Albert Heijn, no guarantee of availability, correctness or completeness (the price in the store applies), no advice, liability, fair use, accounts, intellectual property (with a contact route for rights holders such as Albert Heijn), Dutch law and the competent Dutch court. The footer links to both legal pages on every page.
-- **Privacy page** in Dutch and English. Signed-in users can see what is stored about them, download it as JSON, link a Google account (accounts without one), or delete their account.
+- **Privacy page** in Dutch and English. Signed-in users can see what is stored about them, download it as JSON, or delete their account.
 - **MCP server** at `/mcp`, with the read-only tools `find_stores`, `get_bargains` and `get_bonus`.
 
 ---
@@ -76,7 +77,7 @@ Without an AH login, every endpoint that would call AH answers **503 `ah_not_con
 
 Settings come from environment variables; Compose passes `.env` in. `ah_dashboard/config.py` holds the defaults (`BaseConfig`), and `.env.example` documents them. The profile is chosen with `APP_ENV` = `production` (default), `development` (DEBUG, log level DEBUG) or `testing` (ignores the environment).
 
-The environment is parsed like each default (one pair of surrounding quotes is removed first, as Docker Compose does): integers stay integers (an unparsable value falls back to the default), booleans accept `1/true/yes/on`, and empty text means "unset". The app refuses to start if `AH_GRAPHQL_URL`, `AH_AUTH_REFRESH_URL` or `AH_REST_URL` is not `https://`, if `PUBLIC_BASE_URL` has a path or is not http(s), or if only one of `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` is set.
+The environment is parsed like each default (one pair of surrounding quotes is removed first, as Docker Compose does): integers stay integers (an unparsable value falls back to the default), booleans accept `1/true/yes/on`, and empty text means "unset". The app refuses to start if `AH_GRAPHQL_URL`, `AH_AUTH_REFRESH_URL` or `AH_REST_URL` is not `https://`, if `PUBLIC_BASE_URL` has a path or is not http(s), or if `LOGIN_ISSUER` / `LOGIN_CLIENT_ID` / `LOGIN_CLIENT_SECRET` are not all set or all empty, or `LOGIN_ISSUER` is not `https://`.
 
 **Server process** (read by `serve.py`, not by `config.py`)
 
@@ -126,7 +127,7 @@ The environment is parsed like each default (one pair of surrounding quotes is r
 | `RATE_LIMIT_STORES` / `_SECONDS` | `10` / `60` |
 | `RATE_LIMIT_BONUS` / `_SECONDS` | `30` / `60` |
 | `RATE_LIMIT_MCP` / `_SECONDS` | `120` / `60` |
-| `GOOGLE_SIGNIN_PER_MINUTE` | `10` (per client) |
+| `LOGIN_SIGNIN_PER_MINUTE` | `10` (per client) |
 | `PREFS_WRITES_PER_MINUTE` | `60` (per signed-in user) |
 | `LOGIN_ATTEMPTS_PER_MINUTE` | `60` (admin-password attempts, whole server) |
 
@@ -139,9 +140,10 @@ The environment is parsed like each default (one pair of surrounding quotes is r
 | `ADMIN_MAX_FAILURES` / `ADMIN_LOCKOUT_SECONDS` | `5` / `900` | Wrong admin passwords per client within the window. |
 | `ACCOUNT_MAX_FAILURES` | `20` | Wrong admin passwords from any client within the window. |
 | `ADMIN_COOKIE_SECURE` | `false` | HTTPS-only cookie named `__Host-ahb_admin` (else `ahb_admin`), plus HSTS. Set `true` behind HTTPS. Changing it renames the cookie, which signs everyone out once. |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | unset | Google sign-in. Without them there is no sign-in button and `/auth/google` is a 404. |
-| `PUBLIC_BASE_URL` | unset | e.g. `https://ah.example.nl`. Google returns to `<PUBLIC_BASE_URL>/auth/google/callback`, which must be listed in the OAuth client. When unset, the address is taken from the request. |
-| `MAX_USERS` | `1000` | New Google accounts are refused beyond this. |
+| `LOGIN_ISSUER` / `LOGIN_CLIENT_ID` / `LOGIN_CLIENT_SECRET` | unset | Sign-in through the login service (the secret in the vault). Without them there is no sign-in button and `/auth/login` is a 404. |
+| `REQUIRE_ADMIN_2FA` | `true` | Admin rights only in a sign-in made with the authenticator code at the login service. |
+| `PUBLIC_BASE_URL` | unset | e.g. `https://ah.example.nl`. The login service returns to `<PUBLIC_BASE_URL>/auth/callback`, which must be registered there exactly. When unset, the address is taken from the request. |
+| `MAX_USERS` | `1000` | New accounts are refused beyond this. |
 | `USER_SESSION_DAYS` | `30` | How long a sign-in lasts. |
 | `DATABASE_FILE` | `instance/ah_dashboard.db` | SQLite file. |
 | `PRIVACY_CONTACT` | unset | E-mail address or URL shown on `/privacy` and `/voorwaarden`. |
@@ -150,14 +152,28 @@ The environment is parsed like each default (one pair of surrounding quotes is r
 
 ---
 
+## Connecting to the login service
+
+1. At the login service (e.g. `https://login.jacobebben.nl/admin/`), Apps → add an app:
+   client id `ah-dashboard`, name `AH Dashboard`,
+   redirect URI `https://<dashboard domain>/auth/callback`,
+   post-logout URI `https://<dashboard domain>/`,
+   back-channel logout URI `https://<dashboard domain>/auth/backchannel-logout`.
+   Copy the client secret (shown once).
+2. Settings: `LOGIN_ISSUER=https://login.jacobebben.nl`, `LOGIN_CLIENT_ID=ah-dashboard`, and
+   `LOGIN_CLIENT_SECRET` in the vault (`./vpsctl vault-edit ah-dashboard`), plus `PUBLIC_BASE_URL`.
+3. Existing accounts (from Google sign-in) are linked on the first sign-in with the same username; the old Google
+   sign-ins end with the upgrade. Admins need the authenticator code at the login service.
+
 ## HTTP endpoints
 
 | Path | Who | Notes |
 |---|---|---|
 | `GET /` | everyone | The page. Server settings are embedded as JSON in `<script id="app-config">`. |
 | `GET /healthz` | everyone | Liveness check. |
-| `GET /login`, `POST /logout` | everyone | `/login` goes straight to Google, unless there is an error to show or Google sign-in is off. |
-| `GET /auth/google?purpose=login\|admin\|link`, `GET /auth/google/callback` | everyone | Google sign-in. |
+| `GET /login`, `POST /logout` | everyone | `/login` goes straight to the login service, unless there is an error to show or sign-in is off. `/logout` also signs out at the login service. |
+| `GET /auth/login?purpose=login\|admin`, `GET /auth/callback` | everyone | Sign-in through the login service. |
+| `POST /auth/backchannel-logout` | the login service | Ends sign-ins that ended there (signed logout token). |
 | `GET /privacy`, `GET /privacy/export`, `POST /privacy/delete` | everyone / signed in | Privacy statement, data export, account deletion. |
 | `GET /voorwaarden` (`/terms` redirects) | everyone | Terms of use. |
 | `GET /api/stores?postcode=` | everyone | `{stores, postcode}`; rate-limited (`stores`). |
@@ -210,15 +226,14 @@ The endpoint is anonymous and never reads the session cookie. A request from a b
 - **Browser code**: HTML is built with the escaping `html` tagged template (`static/js/core/dom.js`). Only https image URLs are used.
 - **Sessions**: one signed cookie (HttpOnly, SameSite=Lax). Every sign-in also gets a random id stored in the `sessions` table, so logging out kills copies of the cookie too. Every state-changing request needs the per-session CSRF token (form field `csrf` or header `X-CSRF-Token`). Tokens are compared with `auth/compare.same_secret` only.
 - **Admin access**:
-  - Admin users sign in with Google. Their rights are re-derived from the database on every request.
+  - Admin users sign in through the login service, with the authenticator code (`REQUIRE_ADMIN_2FA`). Their rights are re-derived from the database on every request.
   - The admin password is the emergency way in. It has idle and absolute time limits and ends when the password hash changes.
   - Lockouts apply per client and per account, a server-wide cap applies before hashing, and at most 2 password checks run at once.
   - Without an admin password, the last admin user can't be demoted, disabled or deleted.
-- **Google sign-in**:
-  - State, nonce and the PKCE verifier are kept in the session for 10 minutes and used once.
-  - The code is exchanged server-to-server. The ID token's `iss`, `aud`/`azp`, `exp`, `nonce` and `email_verified` are checked; its signature is not checked, because the token comes straight from Google's token endpoint over TLS.
-  - Accounts are matched by Google `sub`. A linked Google account is never replaced by the user themselves.
-  - No Google tokens are stored.
+- **Sign-in through the login service**:
+  - The code is exchanged server-to-server with the client secret and the PKCE verifier. The ID token's RS256 signature is checked against the login service's published keys, plus `iss`, `aud`/`azp`, `exp`, `iat` and `nonce`; the callback checks `state` and the `iss` parameter.
+  - Accounts are matched by the login service's user id (`login_sub`); an unlinked account (e.g. from the Google era) links on the first sign-in with the same username. The admin can unlink.
+  - Signing out also signs out at the login service; when a sign-in ends there (sign out, blocked, reset) it tells the dashboard (back-channel logout) and the session ends here too.
 - **Errors**: users get generic messages with a reference; details go to the rotating error log. Tokens are never logged.
 
 ---
@@ -296,7 +311,7 @@ bash deploy/tests/vps-sim.sh        # full rehearsal on a simulated Debian VPS (
   - The `testing` profile has no tokens and doesn't read the environment. It uses an in-memory database, no error log, no background jobs, and rate limits off.
   - `configure(app, KEY=value)` changes settings of a running test app.
   - `as_admin(client)` gives a client an admin session.
-  - `enable_google` / `google_sign_in` / `sign_in` use a fake Google token endpoint.
+  - `enable_login` / `login_sign_in` / `sign_in` use a fake login service (`tests/fake_op.py`).
 - The image contains no tests or dev tools (`.dockerignore` excludes `tests/`, `requirements-dev.txt`, `deploy/`, `.github/`, `ci/`).
 
 ---
@@ -316,7 +331,7 @@ ah_dashboard/
   ah/                     client (urllib), session (token + renewal), auth (TokenManager),
                           gateway (all AH endpoints), queries (GraphQL), mapping (validation)
   services/               bargains (LoadGuard), bonus (WeekCache), stores (KnownStores), cache (TTLCache)
-  auth/                   users, sessions, access, admin, google, csrf, compare, lockout
+  auth/                   users, sessions, access, admin, login_client, csrf, compare, lockout
   api/ web/ admin/ mcp/   Flask blueprints
   templates/              Jinja pages and partials
   static/js/              ES modules, no build step: core/ lists/ ui/ sync/ bargains/ bonus/ + main.js

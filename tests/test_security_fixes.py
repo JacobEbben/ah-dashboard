@@ -33,7 +33,8 @@ def test_env_example_holds_no_secrets():
         assert not re.fullmatch(r"[0-9a-fA-F-]{36}", value), f"{key} looks like a real token"
         assert not re.fullmatch(r"\d+_[0-9A-Za-z-]{8,}", value), f"{key} looks like a real access token"
         assert not value.startswith(("scrypt:", "pbkdf2:")), f"{key} holds a password hash"
-        if key.strip() in ("AH_ACCESS_TOKEN", "AH_REFRESH_TOKEN", "ADMIN_PASSWORD_HASH", "TOKEN_SEAL_SECRET"):
+        if key.strip() in ("AH_ACCESS_TOKEN", "AH_REFRESH_TOKEN", "ADMIN_PASSWORD_HASH", "TOKEN_SEAL_SECRET",
+                           "LOGIN_CLIENT_SECRET"):
             assert value == "", f"{key} must be empty in the example"
 
 
@@ -100,7 +101,7 @@ def test_ipv6_rotation_does_not_escape_the_login_lockout(users_app):
 
 
 def test_server_wide_login_cap_stops_hashing(users_app, monkeypatch):
-    from conftest import enable_google
+    from conftest import enable_login
 
     import ah_dashboard.admin.routes as admin_routes
     configure(users_app, LOGIN_ATTEMPTS_PER_MINUTE=3, ACCOUNT_MAX_FAILURES=100, ADMIN_MAX_FAILURES=100)
@@ -111,9 +112,9 @@ def test_server_wide_login_cap_stops_hashing(users_app, monkeypatch):
              for i in range(5)]
     assert codes == [401, 401, 401, 429, 429]
     assert len(checks) == 3                               # no password hashed once the cap is reached
-    enable_google(users_app)                              # Google sign-ins do NOT spend that budget
-    resp = from_addr(users_app.test_client(), "198.51.100.99").get("/auth/google")
-    assert resp.status_code == 302 and resp.headers["Location"].startswith("https://accounts.google.com/")
+    enable_login(users_app)                              # sign-ins (login service) do NOT spend that budget
+    resp = from_addr(users_app.test_client(), "198.51.100.99").get("/auth/login")
+    assert resp.status_code == 302 and resp.headers["Location"].startswith("https://login.test/authorize?")
 
 
 def test_at_most_two_password_checks_at_once():
@@ -294,13 +295,13 @@ def test_known_stores_set_is_capped(monkeypatch):
 
 # ---- non-ASCII tokens are refused, never a 500 (hmac.compare_digest raised on non-ASCII str) ----
 def _admin_app():
-    from conftest import enable_google
+    from conftest import enable_login
 
     class Cfg(TestingConfig):
         ADMIN_PASSWORD_HASH = generate_password_hash("pw-123456789", method="pbkdf2:sha256:1000")
     app = create_app(Cfg)
     app.config["PROPAGATE_EXCEPTIONS"] = False     # an exception would show as a 500, as in production
-    enable_google(app)
+    enable_login(app)
     return app
 
 
@@ -321,20 +322,19 @@ def test_odd_csrf_tokens_are_refused_not_crashing(token):
     assert c.post("/api/bargains/force", headers={"X-CSRF-Token": token}, json={}).status_code == 403
 
 
-def test_odd_google_state_is_refused_not_crashing():
+def test_odd_login_state_is_refused_not_crashing():
     app = _admin_app()
     c = app.test_client()
-    c.get("/auth/google?purpose=login")
-    resp = c.get("/auth/google/callback?state=%C3%A9&code=x")
-    assert resp.status_code == 302 and "googleFailed" in resp.headers["Location"]
+    c.get("/auth/login?purpose=login")
+    resp = c.get("/auth/callback?state=%C3%A9&code=x")
+    assert resp.status_code == 302 and "loginFailed" in resp.headers["Location"]
 
 
 def test_odd_nonce_is_refused():
-    from ah_dashboard.auth.google import GoogleError, GoogleSignIn
-    claims = {"iss": "https://accounts.google.com", "aud": "cid", "exp": time.time() + 60,
-              "sub": "1", "email": "a@example.com", "email_verified": True, "nonce": "é"}
-    with pytest.raises(GoogleError, match="nonce"):
-        GoogleSignIn("cid", "secret").check_claims(claims, "expected-nonce")
+    from conftest import login_sign_in
+    app = _admin_app()
+    resp = login_sign_in(app.test_client(), "sub-1", "anna", nonce="é")        # a token for another sign-in
+    assert "loginFailed" in resp.headers["Location"] and services(app).users.get("anna") is None
 
 
 def test_no_direct_compare_digest():

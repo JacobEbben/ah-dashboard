@@ -35,13 +35,15 @@ class SessionStore:
         self._db = db
         self._max_age = max_age
 
-    def create(self, username: str | None) -> str:
-        """A new session id for ``username`` (None: the admin password)."""
+    def create(self, username: str | None, op_sid: str = "", id_token: str = "", amr: str = "") -> str:
+        """A new session id for ``username`` (None: the admin password). ``op_sid``,
+        ``id_token``, ``amr``: the login service's sign-in it came from."""
         sid = secrets.token_urlsafe(32)
         now = time.time()
         with self._db.transaction() as conn:
             conn.execute("DELETE FROM sessions WHERE created_at < ?", (now - self._max_age,))
-            conn.execute("INSERT INTO sessions (id, username, created_at) VALUES (?, ?, ?)", (sid, username, now))
+            conn.execute("INSERT INTO sessions (id, username, created_at, op_sid, id_token, amr) VALUES (?, ?, ?, ?, ?, ?)",
+                         (sid, username, now, op_sid, id_token, amr))
             # At most MAX_PER_ACCOUNT per account (IS: NULL = the admin password).
             conn.execute(
                 "DELETE FROM sessions WHERE username IS ? AND id NOT IN ("
@@ -56,9 +58,28 @@ class SessionStore:
         row = self._db.one("SELECT username, created_at FROM sessions WHERE id = ?", (sid,))
         return bool(row) and row["username"] == username and time.time() - row["created_at"] < self._max_age
 
-    def delete(self, sid) -> None:
-        if isinstance(sid, str) and sid:
-            self._db.execute("DELETE FROM sessions WHERE id = ?", (sid,))
+    def delete(self, sid) -> str:
+        """End a sign-in; returns its login-service ID token ('' if none)."""
+        if not isinstance(sid, str) or not sid:
+            return ""
+        row = self._db.one("SELECT id_token FROM sessions WHERE id = ?", (sid,))
+        self._db.execute("DELETE FROM sessions WHERE id = ?", (sid,))
+        return row["id_token"] if row else ""
+
+    def amr(self, sid) -> str:
+        """How this sign-in was made at the login service ("pwd otp" = with the code)."""
+        row = self._db.one("SELECT amr FROM sessions WHERE id = ?", (sid,)) if isinstance(sid, str) else None
+        return row["amr"] if row else ""
+
+    def end_login_session(self, op_sid: str | None, sub: str | None) -> int:
+        """Back-channel logout from the login service: one of its sign-ins (``op_sid``)
+        or every sign-in of its user (``sub``: blocked, reset, deleted there)."""
+        if op_sid:
+            return self._db.execute("DELETE FROM sessions WHERE op_sid = ? AND op_sid != ''", (op_sid,))
+        if sub:
+            return self._db.execute("DELETE FROM sessions WHERE username IN "
+                                    "(SELECT username FROM users WHERE login_sub = ?)", (sub,))
+        return 0
 
     def started(self, username: str) -> list[float]:
         """When this user's current sign-ins started (for their data export; never the ids)."""
@@ -74,21 +95,26 @@ class SessionStore:
         return int(self._db.scalar("SELECT COUNT(*) FROM sessions"))
 
 
-def begin(username: str | None) -> None:
+def begin(username: str | None, op_sid: str = "", id_token: str = "", amr: str = "") -> None:
     """A fresh cookie session for a new sign-in (``username`` None: the admin
     password): the previous sign-in in this browser ends on the server too (no
     session fixation), a new session id is listed, a new CSRF token is made."""
     end()
     session.permanent = True
-    session[SID_KEY] = services().sessions.create(username)
+    session[SID_KEY] = services().sessions.create(username, op_sid, id_token, amr)
     csrf.new_token()
 
 
-def end() -> None:
+def end() -> str:
     """End this browser's sign-in on the server (a copied cookie dies too)
-    and clear the cookie."""
-    services().sessions.delete(session.get(SID_KEY))
+    and clear the cookie. Returns the login-service ID token of that sign-in ('' if none)."""
+    id_token = services().sessions.delete(session.get(SID_KEY))
     session.clear()
+    return id_token
+
+
+def current_amr() -> str:
+    return services().sessions.amr(session.get(SID_KEY))
 
 
 def listed(username: str | None) -> bool:

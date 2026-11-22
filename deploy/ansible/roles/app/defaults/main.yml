@@ -30,7 +30,7 @@ app_settings: {}
 app_secrets:
   TOKEN_SEAL_SECRET: "{{ vault_token_seal_secret | default('') }}"
   ADMIN_PASSWORD_HASH: "{{ vault_admin_password_hash | default('') }}"
-  GOOGLE_CLIENT_SECRET: "{{ vault_google_client_secret | default('') }}"
+  LOGIN_CLIENT_SECRET: "{{ vault_login_client_secret | default('') }}"
   AH_REFRESH_TOKEN: "{{ vault_ah_refresh_token | default('') }}"
   AH_ACCESS_TOKEN: "{{ vault_ah_access_token | default('') }}"
 

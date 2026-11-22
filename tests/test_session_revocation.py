@@ -5,8 +5,8 @@ import re
 import time
 
 import pytest
-from conftest import FakeAHClient, enable_google
-from conftest import sign_in as google_user_sign_in
+from conftest import FakeAHClient, enable_login
+from conftest import sign_in as user_sign_in
 from werkzeug.security import generate_password_hash
 
 from ah_dashboard import create_app
@@ -30,7 +30,7 @@ def make_app(tmp_path, admin_pw=ADMIN_PW):
 @pytest.fixture
 def app(tmp_path):
     app = make_app(tmp_path)
-    enable_google(app)
+    enable_login(app)
     services(app).users.create("alice", "alice@example.com")
     services(app).users.create("boss", "boss@example.com")
     services(app).users.set_admin("boss", True)
@@ -42,10 +42,10 @@ def csrf_of(client, path):
 
 
 def sign_in(client, username, password=None, path="/login"):
-    """Users sign in with (fake) Google; the admin password on /admin/login."""
+    """Users sign in through the (fake) login service; the admin password on /admin/login."""
     if path == "/admin/login":
         return client.post(path, data={"csrf": csrf_of(client, path), "password": password})
-    return google_user_sign_in(client, username)
+    return user_sign_in(client, username)
 
 
 def copy_of(client, app):

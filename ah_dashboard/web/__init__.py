@@ -4,4 +4,4 @@ from flask import Blueprint
 
 bp = Blueprint("web", __name__)
 
-from . import google, privacy, routes, terms  # noqa: E402,F401
+from . import login, privacy, routes, terms  # noqa: E402,F401

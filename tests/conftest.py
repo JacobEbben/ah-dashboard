@@ -62,77 +62,51 @@ def client(app):
 
 
 
-# ---- Google sign-in in tests --------------------------------------------------------------
-class FakeGoogle:
-    """Stands in for Google's token endpoint: the real GoogleSignIn (state,
-    PKCE, claim checks), only the HTTP call answers with ``claims`` as an
-    unsigned ID token. Set ``claims`` (or ``answer``) before the callback."""
+# ---- sign-in through the login service in tests ------------------------------------------
+def enable_login(app):
+    """Turn sign-in on with a fake login service (tests/fake_op.py: real RS256 tokens,
+    discovery, JWKS, token endpoint); returns the fake."""
+    from fake_op import CLIENT_ID, CLIENT_SECRET, ISSUER, FakeOP
 
-    def __new__(cls, client_id="test-client"):
-        from ah_dashboard.auth.google import GoogleSignIn
-
-        class _Fake(GoogleSignIn):
-            claims: dict | None = None
-            answer: dict | None = None
-
-            def _post_token(self, form):
-                self.last_form = form
-                if self.answer is not None:
-                    return self.answer
-                return {"id_token": make_id_token(self.claims or {})}
-        return _Fake(client_id, "test-secret")
+    from ah_dashboard.auth.login_client import LoginClient
+    configure(app, LOGIN_ISSUER=ISSUER, LOGIN_CLIENT_ID=CLIENT_ID, LOGIN_CLIENT_SECRET=CLIENT_SECRET)
+    op = FakeOP()
+    services(app).login = LoginClient(ISSUER, CLIENT_ID, CLIENT_SECRET, production=False, http=op.http)
+    return op
 
 
-def make_id_token(claims):
-    import base64
-    import json
-    def part(obj):
-        return base64.urlsafe_b64encode(json.dumps(obj).encode()).rstrip(b"=").decode()
-    return part({"alg": "RS256"}) + "." + part(claims) + ".sig"
-
-
-def enable_google(app):
-    """Turn Google sign-in on with a fake Google; returns the fake."""
-    configure(app, GOOGLE_CLIENT_ID="test-client", GOOGLE_CLIENT_SECRET="test-secret")
-    fake = FakeGoogle()
-    services(app).google = fake
-    return fake
-
-
-def google_claims(nonce, sub, email, **extra):
-    """ID token claims; by default a FRESH Google login (auth_time = now)."""
-    now = int(time.time())
-    return {"iss": "https://accounts.google.com", "aud": "test-client", "sub": sub, "email": email,
-            "email_verified": True, "nonce": nonce, "iat": now, "exp": now + 600, "auth_time": now, **extra}
-
-
-def google_sign_in(client, sub="sub-1", email="someone@example.com", purpose="login", **extra):
-    """Go through /auth/google and its callback as if Google signed in this
-    account; returns the callback's response."""
+def login_sign_in(client, sub="sub-1", username="someone", purpose="login", tamper=None, overrides=None, **claims):
+    """Go through /auth/login, the (fake) login service and /auth/callback; returns
+    the callback's response. ``claims`` / ``overrides`` replace the ID token's claims
+    (``overrides`` for names like "sub" that clash with the parameters)."""
     from urllib.parse import parse_qs, urlparse
     app = client.application
-    fake = services(app).google
-    if fake is None:
-        fake = enable_google(app)
-    start = client.get(f"/auth/google?purpose={purpose}")
+    op = getattr(app, "_fake_op", None)
+    if op is None or services(app).login is None:
+        op = app._fake_op = enable_login(app)
+    op.token_overrides = {**claims, **(overrides or {})}
+    start = client.get(f"/auth/login?purpose={purpose}")
     assert start.status_code == 302, start.status_code
-    query = parse_qs(urlparse(start.headers["Location"]).query)
-    if "state" not in query:       # not sent to Google (e.g. needs a sign-in first)
+    if "state=" not in start.headers["Location"]:      # not sent to the login service
         return start
-    fake.claims = google_claims(query["nonce"][0], sub, email, **extra)
-    return client.get(f"/auth/google/callback?code=test-code&state={query['state'][0]}")
+    query = op.approve(start.headers["Location"], sub, username)
+    assert parse_qs(urlparse(start.headers["Location"]).query)["state"][0] == query["state"]
+    if tamper:
+        tamper(query)
+    return client.get("/auth/callback", query_string=query)
 
 
-def sign_in(client, username="alice", purpose="login"):
-    """Sign ``client`` in as the existing user ``username`` with Google (links
-    a test Google account to the user first if needed)."""
+def sign_in(client, username="alice", purpose="login", amr=("pwd", "otp")):
+    """Sign ``client`` in as the existing user ``username`` through the (fake) login
+    service (links a test login-service user to the account first if needed)."""
     users = services(client.application).users
     rec = users.get(username)
     assert rec is not None, f"no user {username}"
-    if not rec["google_sub"]:
-        users.link_google(username, f"sub-{username}", rec["email"] or f"{username}@example.com")
+    if not rec["login_sub"]:
+        services(client.application).db.execute("UPDATE users SET login_sub = ? WHERE username = ?",
+                                                (f"sub-{username}", username))
         rec = users.get(username)
-    return google_sign_in(client, rec["google_sub"], rec["email"], purpose=purpose)
+    return login_sign_in(client, rec["login_sub"], username, purpose=purpose, amr=list(amr))
 
 
 def as_admin(client, csrf="test-csrf"):

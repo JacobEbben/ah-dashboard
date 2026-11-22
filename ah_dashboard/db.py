@@ -30,21 +30,23 @@ log = logging.getLogger(__name__)
 #   fix): add a step to MIGRATIONS under the next number and bump
 #   SCHEMA_VERSION to it. _SCHEMA must describe the end result (a fresh
 #   database is created from it directly and starts at SCHEMA_VERSION).
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
-    username        TEXT PRIMARY KEY,      -- internal name (made from the e-mail address)
-    password_hash   TEXT NOT NULL,         -- unused since Google sign-in: always ''
+    username        TEXT PRIMARY KEY,      -- internal name (the login service's username, or older: from an e-mail address)
+    password_hash   TEXT NOT NULL,         -- unused (no passwords here): always ''
     created_at      REAL NOT NULL,
     last_login      REAL,
     disabled        INTEGER NOT NULL DEFAULT 0,
     session_version TEXT NOT NULL,
     is_admin        INTEGER NOT NULL DEFAULT 0,
-    email           TEXT,                  -- lower case; links a Google account on its first sign-in
-    google_sub      TEXT                   -- Google's permanent account id, once linked
+    email           TEXT,                  -- unused since the login service (kept from Google sign-in; exported)
+    google_sub      TEXT,                  -- unused since the login service (kept, like password_hash)
+    login_sub       TEXT                   -- the login service's permanent user id, once linked
 );
 CREATE UNIQUE INDEX IF NOT EXISTS users_by_email ON users (email) WHERE email IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS users_by_google ON users (google_sub) WHERE google_sub IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS users_by_login ON users (login_sub) WHERE login_sub IS NOT NULL;
 CREATE TABLE IF NOT EXISTS user_prefs (
     username   TEXT PRIMARY KEY REFERENCES users(username) ON DELETE CASCADE,
     prefs      TEXT NOT NULL,          -- JSON object: settings key -> text value
@@ -57,14 +59,28 @@ CREATE TABLE IF NOT EXISTS known_stores (
     id       INTEGER PRIMARY KEY,
     added_at REAL NOT NULL
 );
+-- The connection to the central login service, set in the admin panel (auth/login_connection.py),
+-- one row; the client secret is sealed like the AH login. A new table: no SCHEMA_VERSION bump needed.
+CREATE TABLE IF NOT EXISTS login_config (
+    id         INTEGER PRIMARY KEY CHECK (id = 1),
+    issuer     TEXT NOT NULL,
+    client_id  TEXT NOT NULL,
+    secret     TEXT NOT NULL,
+    updated_by TEXT NOT NULL,
+    updated_at REAL NOT NULL
+);
 -- Active sign-ins (sessions.SessionStore): a session id in the cookie must be
 -- listed here, so logout ends a session everywhere. username NULL = a sign-in
 -- with the admin password. A new table: no SCHEMA_VERSION bump needed.
 CREATE TABLE IF NOT EXISTS sessions (
     id         TEXT PRIMARY KEY,
     username   TEXT REFERENCES users(username) ON DELETE CASCADE,
-    created_at REAL NOT NULL
+    created_at REAL NOT NULL,
+    op_sid     TEXT NOT NULL DEFAULT '',   -- the login service's sign-in (back-channel logout)
+    id_token   TEXT NOT NULL DEFAULT '',   -- its ID token (id_token_hint when signing out there)
+    amr        TEXT NOT NULL DEFAULT ''    -- how they signed in there ("pwd otp" = with the authenticator code)
 );
+CREATE INDEX IF NOT EXISTS sessions_by_op_sid ON sessions (op_sid) WHERE op_sid != '';
 CREATE INDEX IF NOT EXISTS sessions_by_user ON sessions (username, created_at);
 -- The cached national Bonus week (services/bonus.BonusStore), one row: public AH
 -- data, kept so a restart or redeploy doesn't load it from AH again. A new table:
@@ -101,12 +117,28 @@ def _migrate_to_google(conn: sqlite3.Connection) -> None:
     conn.execute("UPDATE users SET password_hash = ''")
 
 
+def _migrate_to_login_service(conn: sqlite3.Connection) -> None:
+    """Sign-in through the central login service replaces Google: the users get the
+    login service's user id, sessions remember the login service's sign-in. Google
+    columns stay (unused), like password_hash."""
+    _add_column(conn, "users", "login_sub", "TEXT")
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS users_by_login ON users (login_sub) WHERE login_sub IS NOT NULL")
+    # Very old databases have no sessions table yet: _SCHEMA creates it (with these columns) afterwards.
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'sessions'").fetchone():
+        _add_column(conn, "sessions", "op_sid", "TEXT NOT NULL DEFAULT ''")
+        _add_column(conn, "sessions", "id_token", "TEXT NOT NULL DEFAULT ''")
+        _add_column(conn, "sessions", "amr", "TEXT NOT NULL DEFAULT ''")
+        conn.execute("CREATE INDEX IF NOT EXISTS sessions_by_op_sid ON sessions (op_sid) WHERE op_sid != ''")
+        conn.execute("DELETE FROM sessions WHERE username IS NOT NULL")   # Google sign-ins end: sign in anew
+
+
 # Upgrade steps: MIGRATIONS[n] upgrades a database from version n-1 to n. Each
 # runs in its own transaction together with the version update.
 MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {
     1: lambda conn: None,                                   # the first schema (users, user_prefs, secrets)
     2: lambda conn: _add_column(conn, "users", "is_admin", "INTEGER NOT NULL DEFAULT 0"),
     3: lambda conn: _migrate_to_google(conn),
+    4: lambda conn: _migrate_to_login_service(conn),
 }
 
 

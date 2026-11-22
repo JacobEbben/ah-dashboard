@@ -1,19 +1,16 @@
 {% extends "base.html" %}
 {% block title %}AH Dashboard{% endblock %}
 {% block body %}
-{# Only shown after a failed Google sign-in or without Google sign-in (web/routes.login); no form, so no cookie. #}
+{# Only shown after a failed sign-in or without sign-in configured (web/routes.login); no form, so no cookie. #}
 <div class="wrap admin">
   <div class="admincard narrow signin">
     <h1 class="apptitle" data-i18n="title"></h1>
     <h2 data-i18n="signIn"></h2>
     <p class="smeta" data-i18n="signInWhy"></p>
     {% if error %}<p class="adminmsg error" role="alert" data-i18n="{{ error }}"></p>{% endif %}
-    {% if google %}
-    <a class="googlebtn" href="{{ url_for('web.google_start') }}">
-      {% include "partials/_google_logo.html" %}
-      <span data-i18n="signInGoogle">Sign in with Google</span>
-    </a>
-    <p class="smeta" data-i18n="signInGoogleNote"></p>
+    {% if signin %}
+    <a class="secondary authbtn" href="{{ url_for('web.login_start') }}" data-i18n="signInLogin">Sign in</a>
+    <p class="smeta" data-i18n="signInLoginNote"></p>
     {% else %}
     <p class="adminmsg error" data-i18n="signInUnavailable"></p>
     {% endif %}

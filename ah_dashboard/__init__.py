@@ -21,8 +21,9 @@ from . import errors, headers, logging_setup, sealing
 from .ah.auth import TokenManager, TokenStore
 from .ah.client import AHClient
 from .ah.session import AHSession
-from .auth.google import GoogleSignIn
 from .auth.lockout import LoginLimiter
+from .auth.login_client import origin
+from .auth.login_connection import LoginConnection
 from .auth.sessions import SessionStore
 from .auth.users import UserStore
 from .config import Settings, load_config
@@ -42,6 +43,8 @@ log = logging.getLogger(__name__)
 # changing them makes the stored AH login unreadable and signs everyone out.
 SESSION_KEY_LABEL = b"ah-bargains flask session v1"
 TOKEN_STORE_LABEL = b"ah-bargains token store v1"
+# Seals the login-service client secret stored by the admin panel (auth/login_connection.py).
+LOGIN_CONFIG_LABEL = b"ah-dashboard login-service client secret v1"
 
 
 def create_app(config: str | type | None = None, overrides: Mapping[str, Any] | None = None) -> Flask:
@@ -73,7 +76,8 @@ def create_app(config: str | type | None = None, overrides: Mapping[str, Any] | 
     app.register_blueprint(admin_bp, url_prefix="/admin")
     app.register_blueprint(mcp_bp, url_prefix="/mcp")
     errors.register(app)
-    headers.register(app, image_hosts=settings.app.csp_image_hosts, hsts=settings.auth.cookie_secure)
+    headers.register(app, image_hosts=settings.app.csp_image_hosts, hsts=settings.auth.cookie_secure,
+                     form_targets=lambda: _login_origin(app))
 
     if settings.app.background_jobs:
         svc.scheduler.start()
@@ -103,9 +107,9 @@ def _configure_cookie(app: Flask, settings: Settings) -> None:
         PERMANENT_SESSION_LIFETIME=timedelta(days=settings.auth.user_session_days),
     )
     a = settings.auth
-    if a.google_enabled and not a.public_base_url and secure and not app.config["TESTING"]:
-        log.warning("Google sign-in is on but PUBLIC_BASE_URL is unset: the return address is taken "
-                    "from the request. Set PUBLIC_BASE_URL to the site's https:// address.")
+    if a.login_issuer and not a.public_base_url and secure and not app.config["TESTING"]:
+        log.warning("Sign-in through the login service is on but PUBLIC_BASE_URL is unset: the return "
+                    "address is taken from the request. Set PUBLIC_BASE_URL to the site's https:// address.")
     if not secure and not app.config["TESTING"] and not app.config["DEBUG"]:
         log.warning("ADMIN_COOKIE_SECURE is off: the session cookie is also sent over plain HTTP. "
                     "Set ADMIN_COOKIE_SECURE=true when the app is served via HTTPS.")
@@ -143,8 +147,9 @@ def _build_services(app: Flask, settings: Settings, secret: str) -> Services:
         scheduler=scheduler,
         rate_limiter=RateLimiter(),
         admin_limiter=LoginLimiter(),
-        google=GoogleSignIn(a.google_client_id, a.google_client_secret, timeout=ah.timeout)
-        if a.google_client_id and a.google_client_secret else None,
+        login_connection=LoginConnection(db, sealing.derive_fernet(secret, LOGIN_CONFIG_LABEL),
+                                         lambda: app.extensions["services"].settings,
+                                         lambda: not app.config["TESTING"] and not app.config["DEBUG"]),
         known_stores=KnownStores(db),
         # Per-store bargains, shared by all visitors. Old entries are served
         # while they reload in the background; failed stores are not asked
@@ -183,3 +188,10 @@ def _database_path(app: Flask, settings: Settings) -> str | None:
     if configured == "":
         return None
     return configured or os.path.join(app.instance_path, "ah_dashboard.db")
+
+
+def _login_origin(app: Flask) -> str:
+    """The login service's origin for the CSP's form-action (sign-out redirects there)."""
+    from .container import services
+    c = services(app).login_connection.config()
+    return origin(c["issuer"]) if c and c["issuer"] else ""
