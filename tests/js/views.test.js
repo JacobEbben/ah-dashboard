@@ -4,7 +4,7 @@ import { test } from 'node:test';
 
 import { activeInStore, filterOffers, groupKeyFn, IN_STORE_MS, inStoreUntil, isSpecial, knownCats, mergeAcrossStores, sortGroupKeys, sorter, specialSummary }
   from '../../ah_dashboard/static/js/bargains/model.js';
-import { categoryGroups, groupOffers, indexDeals, likedOffers, needsFetch, parseGroups, parseLikedPill,
+import { categoryGroups, groupMemberRows, groupOffers, indexDeals, likedOffers, needsFetch, parseGroups, parseLikedPill,
   sortOffers } from '../../ah_dashboard/static/js/bonus/model.js';
 import { mergePrefs } from '../../ah_dashboard/static/js/sync/merge.js';
 
@@ -171,4 +171,23 @@ test('merging settings changed on two devices', () => {
   assert.equal(merged.ah_lang, 'nl');                                         // other settings: local wins
   assert.deepEqual(JSON.parse(merged.ah_blacklist), [{ key: '9', title: 'X' }]);
   assert.deepEqual(JSON.parse(merged.ah_presets), { Theirs: { minDisc: '25' }, Both: { minDisc: '10' }, Mine: { minDisc: '50' } });
+});
+
+test('groupMemberRows: same titles get their size, identical rows merge', () => {
+  const rows = groupMemberRows([
+    { id: 1, title: 'AH Pindakaas', size: '350 g' },
+    { id: 2, title: 'AH Pindakaas', size: '600 g' },
+    { id: 3, title: 'AH Hagelslag', size: '400 g' },
+    { id: 4, title: 'AH Cola', size: null },
+    { id: 5, title: 'AH Cola' },
+    { id: 6, title: 'AH Pindakaas', size: '350 g' },
+    { id: 7, title: '  ' },
+  ]);
+  assert.deepEqual(rows, [
+    { id: 1, label: 'AH Pindakaas · 350 g' },
+    { id: 2, label: 'AH Pindakaas · 600 g' },
+    { id: 3, label: 'AH Hagelslag' },
+    { id: 4, label: 'AH Cola' },
+  ]);
+  assert.deepEqual(groupMemberRows(null), []);
 });

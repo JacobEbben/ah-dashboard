@@ -198,3 +198,15 @@ def test_nested_json_token_paste_is_refused_not_crashing():
     headers = as_admin(c)
     resp = c.post("/admin/tokens", data={"csrf": headers["X-CSRF-Token"], "refresh_token": "{" * 100_000})
     assert resp.status_code == 302
+
+
+def test_group_members_carry_their_size():
+    """Products with the same title are told apart by size (the page shows it)."""
+    found = mapping.group_details({"bonusPromotions": [{"productCount": 3, "products": [
+        {"id": 1, "title": "AH Pindakaas", "salesUnitSize": "350 g"},
+        {"id": 2, "title": "AH Pindakaas", "salesUnitSize": "600 g"},
+        {"id": 3, "title": "AH Hagelslag", "salesUnitSize": {"bad": 1}},
+    ]}]}, [])
+    assert found is not None
+    assert [(m.title, m.size) for m in found["products"]] == [
+        ("AH Pindakaas", "350 g"), ("AH Pindakaas", "600 g"), ("AH Hagelslag", None)]

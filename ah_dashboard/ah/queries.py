@@ -59,6 +59,7 @@ GROUP_PRODUCTS_QUERY = """query FetchBonusPromotionWithProducts(
     products {
       id
       title
+      salesUnitSize
       priceV2(periodStart: $periodStart, periodEnd: $periodEnd,
               filterUnavailableProducts: $filterUnavailableProducts, forcePromotionVisibility: true) {
         now { amount }

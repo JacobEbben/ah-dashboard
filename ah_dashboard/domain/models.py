@@ -9,7 +9,7 @@ fields and prices; each adds its own part (:class:`BargainInfo` /
              category, priceNow, priceWas
     bargain  storeId, storeName, stock, discount, expires, markdownType
     bonus    dealType, mechanism, minQty, priceFrom, productCount, isGroup,
-             products [{id, title}]
+             products [{id, title, size}]
 
 ``id`` is AH's webshop product id (the same in both views, so liking a
 product works across them); a Bonus group deal has no id and lists its
@@ -53,6 +53,7 @@ class Store:
 class GroupMember:
     id: int
     title: str
+    size: str | None = None      # e.g. "500 g": tells apart products with the same title
 
 
 @dataclass(slots=True)
@@ -105,7 +106,7 @@ class Offer:
         if (d := self.bonus) is not None:
             out.update(dealType=d.deal_type, mechanism=d.mechanism, minQty=d.min_qty, priceFrom=d.price_from,
                        productCount=d.product_count, isGroup=d.is_group,
-                       products=[{"id": m.id, "title": m.title} for m in d.products])
+                       products=[{"id": m.id, "title": m.title, "size": m.size} for m in d.products])
         return out
 
 
@@ -199,7 +200,7 @@ def _stored_offer(o: Any) -> Offer:
         pid, title = _int(p.get("id")), _text(p.get("title"), required=True)
         if pid is None or title is None:
             raise ValueError("product")
-        products.append(GroupMember(pid, title))
+        products.append(GroupMember(pid, title, _text(p.get("size"))))
     price_from, is_group = o.get("priceFrom"), o.get("isGroup")
     if not isinstance(price_from, bool) or not isinstance(is_group, bool):
         raise ValueError("flag expected")

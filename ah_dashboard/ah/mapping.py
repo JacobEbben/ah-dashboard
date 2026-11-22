@@ -303,7 +303,7 @@ def group_details(data: Any, labels: Any) -> dict[str, Any] | None:
         pid, title = product_id(p.get("id")), text(p.get("title"))
         if pid and title and pid not in seen and len(members) < MAX_GROUP_PRODUCTS:
             seen.add(pid)
-            members.append(GroupMember(pid, title))
+            members.append(GroupMember(pid, title, text(p.get("salesUnitSize"), 60)))
         image = image or image_from_pack(p.get("imagePack"))
         price = _dict(p.get("priceV2"))
         now = money(_dict(price.get("now")).get("amount"))

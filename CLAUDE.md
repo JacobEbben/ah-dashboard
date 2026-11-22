@@ -8,7 +8,7 @@ The server calls AH with ONE operator-configured AH login; visitors need no acco
 
 ## Commands (Docker only; no local venv/Node)
 
-Checks run in throwaway containers with the repo mounted read-only. `ci/check.sh` is what CI runs; all of these must stay green (529 pytest tests + ruff + mypy; 30 node tests at time of writing).
+Checks run in throwaway containers with the repo mounted read-only. `ci/check.sh` is what CI runs; all of these must stay green (530 pytest tests + ruff + mypy; 31 node tests at time of writing).
 
 ```bash
 docker compose up -d --build                                            # run on 127.0.0.1:8733, settings from .env
@@ -60,7 +60,7 @@ blueprints api/ web/ admin/ mcp/  →  auth/  →  services/  →  ah/  →  dom
 
 ### Module map
 - `domain/`
-  - `models.py`: `Offer` is one shape for both views; `to_json()` is the API contract. Common keys `kind,id,title,brand,unitSize,image,category,priceNow,priceWas`; bargain keys `storeId,storeName,stock,discount,expires,markdownType`; bonus keys `dealType,mechanism,minQty,priceFrom,productCount,isGroup,products[{id,title}]`.
+  - `models.py`: `Offer` is one shape for both views; `to_json()` is the API contract. Common keys `kind,id,title,brand,unitSize,image,category,priceNow,priceWas`; bargain keys `storeId,storeName,stock,discount,expires,markdownType`; bonus keys `dealType,mechanism,minQty,priceFrom,productCount,isGroup,products[{id,title,size}]`.
   - `pricing.py`: `bonus_price`, `deal_type`.
   - `dates.py`: `amsterdam_today`, Dutch DST computed without tzdata.
 - `ah/`

@@ -7,6 +7,7 @@
  * @typedef {object} GroupMember
  * @property {number} id
  * @property {string} title
+ * @property {string|null} [size] e.g. "500 g"
  *
  * @typedef {object} Offer
  * @property {'bargain'|'bonus'} kind

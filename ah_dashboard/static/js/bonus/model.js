@@ -145,3 +145,28 @@ export function parseGroups(raw, defaultName, { maxGroups, maxName, maxCats }) {
   }
   return out;
 }
+
+/**
+ * The rows of a group deal's product list. Titles that occur more than once
+ * get their size ("AH Pindakaas · 350 g"), so the rows can be told apart;
+ * rows that are still the same (same title, no or the same size) are merged
+ * into one, keeping the first product's id for the link.
+ * @param {unknown} products
+ * @returns {{id: number, label: string}[]}
+ */
+export function groupMemberRows(products) {
+  /** @type {{id: number, title: string, size: string}[]} */
+  const list = (Array.isArray(products) ? products : [])
+    .filter(m => m && typeof m.title === 'string' && m.title.trim())
+    .map(m => ({ id: m.id, title: m.title.trim(), size: typeof m.size === 'string' ? m.size.trim() : '' }));
+  /** @type {Map<string, number>} */
+  const counts = new Map();
+  for (const m of list) counts.set(m.title, (counts.get(m.title) || 0) + 1);
+  /** @type {Map<string, {id: number, label: string}>} */
+  const rows = new Map();
+  for (const m of list) {
+    const label = (counts.get(m.title) || 0) > 1 && m.size ? `${m.title} · ${m.size}` : m.title;
+    if (!rows.has(label)) rows.set(label, { id: m.id, label });
+  }
+  return [...rows.values()];
+}

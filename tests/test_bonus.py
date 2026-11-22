@@ -452,7 +452,7 @@ def test_group_lists_its_products_with_webshop_ids():
     answer["bonusPromotions"][0]["products"].append({"id": 9, "title": ""})             # no title
     item, *_ = _load_group(labels, "2 VOOR 12.00", answer)
     assert item["isGroup"] and item["priceNow"] == 6.00          # X voor Y: price known from the deal
-    assert item["products"] == [{"id": 1, "title": "P1"}, {"id": 2, "title": "P2"}, {"id": 3, "title": "P3"}]
+    assert item["products"] == [{"id": 1, "title": "P1", "size": None}, {"id": 2, "title": "P2", "size": None}, {"id": 3, "title": "P3", "size": None}]
 
 
 def test_group_products_listed_even_without_prices():

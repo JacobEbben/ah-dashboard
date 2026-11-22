@@ -30,7 +30,7 @@ import { makeReorderable } from '../ui/reorder.js';
 import { currentView, setView } from '../ui/view.js';
 import { GROUP_NAME_MAX, addToGroup, allGroups, announce, createGroup, groupByKey, groupKey, groupedCats,
   initGroups, renameGroup, renderGroupsPanel, reorderGroups } from './groups.js';
-import { categoryGroups, groupOffers, indexDeals, likedOffers, needsFetch, offerUnitPrice, parseLikedPill,
+import { categoryGroups, groupMemberRows, groupOffers, indexDeals, likedOffers, needsFetch, offerUnitPrice, parseLikedPill,
   sortOffers } from './model.js';
 
 /** @typedef {import('../core/offers.js').Offer} Offer */
@@ -146,15 +146,15 @@ const openGroups = new Set();
 /** @param {Offer} o @param {number} count */
 function groupLine(o, count) {
   if (!o.isGroup) return '';
-  const members = (Array.isArray(o.products) ? o.products : []).filter(m => m && m.title);
+  const members = groupMemberRows(o.products);
   const label = count > 1 ? t('bonusGroupN', count) : members.length > 1 ? t('bonusGroupN', members.length) : t('bonusGroup');
   if (members.length < 2) return count !== 1 ? html`<div class="unit">${label}</div>` : '';
   const open = openGroups.has(productKey(o));
   const items = members.map(m => {
     const url = productUrl(m.id);
     return url
-      ? html`<li><a href="${url}" target="_blank" rel="noopener noreferrer" title="${t('viewOnAh', m.title)}">${m.title}</a></li>`
-      : html`<li>${m.title}</li>`;
+      ? html`<li><a href="${url}" target="_blank" rel="noopener noreferrer" title="${t('viewOnAh', m.label)}">${m.label}</a></li>`
+      : html`<li>${m.label}</li>`;
   });
   return html`<button type="button" class="grouptoggle unit" aria-expanded="${String(open)}" title="${t('bonusGroupShow')}">${label}<span class="groupcaret" aria-hidden="true">▾</span></button>
     <div class="grouplist"${open ? '' : html` hidden`}>
