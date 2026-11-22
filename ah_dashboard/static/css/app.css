@@ -746,3 +746,18 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
 }
 /* Small phones: no room for the cards-per-row slider (Auto gives 1 column there, at most 2 fit). */
 @media (max-width: 420px) { .controls .colsctl { display: none; } }
+
+/* Group deal: "N products ▾" unfolds the products in the offer (bonus/index.js groupLine). */
+.grouptoggle { display: inline-flex; align-items: center; gap: calc(4px * var(--cs)); padding: 0; border: 0;
+  background: none; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; text-align: left; }
+.grouptoggle:hover, .grouptoggle:focus-visible { color: var(--ink); }
+.groupcaret { display: inline-block; transition: transform .15s; }
+.grouptoggle[aria-expanded="true"] .groupcaret { transform: rotate(180deg); }
+.grouplist { margin: calc(4px * var(--cs)) 0; border-left: 2px solid var(--line); padding-left: calc(10px * var(--cs));
+  font-size: calc(12px * var(--cs)); color: var(--muted); }
+.grouplist ul { margin: 0; padding: calc(2px * var(--cs)) calc(4px * var(--cs)) calc(2px * var(--cs)) 0; list-style: none;
+  max-height: calc(160px * var(--cs)); overflow-y: auto; overscroll-behavior: contain; }
+.grouplist li { padding: calc(3px * var(--cs)) 0; border-bottom: 1px solid var(--line); line-height: 1.3; }
+.grouplist li:last-child { border-bottom: 0; }
+.grouplist a { color: var(--ink); text-decoration: none; }
+.grouplist a:hover, .grouplist a:focus-visible { text-decoration: underline; }

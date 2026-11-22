@@ -19,7 +19,7 @@ import { $, html } from '../core/dom.js';
 import { emit, on, EV } from '../core/events.js';
 import { euro, fmtDate, searchTerms, fold } from '../core/format.js';
 import { t } from '../core/i18n.js';
-import { productKey, safeImageUrl } from '../core/offers.js';
+import { productKey, productUrl, safeImageUrl } from '../core/offers.js';
 import { KEYS, storage } from '../core/storage.js';
 import { isHidden, showHiddenEnabled } from '../lists/blacklist.js';
 import { isLiked } from '../lists/likes.js';
@@ -117,14 +117,49 @@ function card(o) {
     ${linkedThumb(o, thumb)}
     <div class="titlerow"><div class="title">${title}</div>${cardActions(o, title)}</div>
     ${metaLine(meta, offerUnitPrice(o))}
-    ${o.isGroup && count !== 1 ? html`<div class="unit">${count > 1 ? t('bonusGroupN', count) : t('bonusGroup')}</div>` : ''}
+    ${groupLine(o, count)}
     <div class="prices">
       <span class="now">${now != null ? html`${o.priceFrom ? html`<span class="from">${t('priceFrom')}</span>` : ''}${euro(now)}` : ''}</span>
       ${was != null && was !== now ? html`<span class="was">${euro(was)}</span>` : ''}
       ${now != null && minQty > 1 ? html`<span class="peritem">${t('perItemAt', minQty)}</span>` : ''}
     </div>`;
   wireCard(el, o);
+  const toggle = el.querySelector('.grouptoggle');
+  if (toggle) toggle.addEventListener('click', () => {
+    const open = toggle.getAttribute('aria-expanded') !== 'true';
+    const key = productKey(o);
+    if (open) openGroups.add(key); else openGroups.delete(key);
+    toggle.setAttribute('aria-expanded', String(open));
+    const list = /** @type {HTMLElement|null} */ (el.querySelector('.grouplist'));
+    if (list) list.hidden = !open;
+  });
   return el;
+}
+
+// ---- products of a group deal ----------------------------------------------------------
+// A group deal ("Alle AH Verse pizza's") comes with its products (id + title,
+// from the server). The "N products" line under the title is a button that
+// unfolds them, each linked to ah.nl. Open lists stay open across re-renders.
+/** @type {Set<string>} */
+const openGroups = new Set();
+
+/** @param {Offer} o @param {number} count */
+function groupLine(o, count) {
+  if (!o.isGroup) return '';
+  const members = (Array.isArray(o.products) ? o.products : []).filter(m => m && m.title);
+  const label = count > 1 ? t('bonusGroupN', count) : members.length > 1 ? t('bonusGroupN', members.length) : t('bonusGroup');
+  if (members.length < 2) return count !== 1 ? html`<div class="unit">${label}</div>` : '';
+  const open = openGroups.has(productKey(o));
+  const items = members.map(m => {
+    const url = productUrl(m.id);
+    return url
+      ? html`<li><a href="${url}" target="_blank" rel="noopener noreferrer" title="${t('viewOnAh', m.title)}">${m.title}</a></li>`
+      : html`<li>${m.title}</li>`;
+  });
+  return html`<button type="button" class="grouptoggle unit" aria-expanded="${String(open)}" title="${t('bonusGroupShow')}">${label}<span class="groupcaret" aria-hidden="true">▾</span></button>
+    <div class="grouplist"${open ? '' : html` hidden`}>
+      <ul>${items}</ul>
+    </div>`;
 }
 
 /** @param {string|undefined} name */
