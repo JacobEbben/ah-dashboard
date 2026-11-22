@@ -1,8 +1,0 @@
----
-# Public SSH keys allowed to log in as the Ansible user (your own keys). At
-# least one is required when ssh_harden is on, so you can't lock yourself out.
-admin_ssh_keys: []
-# Turn off SSH password logins and root password login (keys only).
-ssh_harden: true
-# Install security updates automatically (unattended-upgrades).
-auto_security_updates: true

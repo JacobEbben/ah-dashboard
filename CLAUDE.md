@@ -4,7 +4,7 @@ Flask app (Waitress, one process) with two views on Albert Heijn offers:
 - **Bargains**: per-store "Laatste Kans Koopjes", from GraphQL `bargainItems`.
 - **Bonus**: this week's national Bonus, from REST `/mobile-services/bonuspage/...` plus GraphQL `bonusPromotions` for group deals.
 
-The server calls AH with ONE operator-configured AH login; visitors need no account. Optional sign-in through the central login service (`../login-service`, OpenID Connect) only syncs settings. Also included: `/admin` panel, `/privacy` (export/delete), `/voorwaarden` (terms of use), `/mcp` (read-only MCP server). Python 3.12; deps Flask 3, waitress 3, cryptography (`requirements.txt`, pinned with hashes in `requirements.lock`).
+The server calls AH with ONE operator-configured AH login; visitors need no account. Optional sign-in through the central login service (an OpenID Connect provider, e.g. the companion Login Service) only syncs settings. Also included: `/admin` panel, `/privacy` (export/delete), `/voorwaarden` (terms of use), `/mcp` (read-only MCP server). Python 3.12; deps Flask 3, waitress 3, cryptography (`requirements.txt`, pinned with hashes in `requirements.lock`).
 
 ## Commands (Docker only; no local venv/Node)
 
@@ -16,8 +16,7 @@ docker compose run --rm ah-dashboard python -m ah_dashboard.admin       # prints
 docker run --rm -v "$PWD:/src:ro" -w /src -e PYTHONDONTWRITEBYTECODE=1 python:3.12-slim sh ci/check.sh python  # pytest, ruff, mypy
 docker run --rm -v "$PWD:/src:ro" -w /src node:22-slim sh ci/check.sh js        # tsc -p jsconfig.json + node --test tests/js
 docker run --rm -v "$PWD:/src:ro" -w /src python:3.12-slim sh ci/check.sh lock  # requirements.lock == pip-compile(requirements.txt)
-bash deploy/tests/run.sh [--quick]     # Ansible syntax/lint, template render, caddy validate, shellcheck, deploy-flow
-bash deploy/tests/vps-sim.sh           # full rehearsal on a simulated VPS (~10 min, privileged container)
+docker build -t ah-dashboard:ci . && bash deploy/smoke-image.sh ah-dashboard:ci   # what release.yml checks on the image
 ```
 
 - Single test: append `-k name` / a path to `python -m pytest -q` (in the `ci/check.sh python` container, after `pip install -r requirements-dev.txt`).
@@ -27,7 +26,7 @@ bash deploy/tests/vps-sim.sh           # full rehearsal on a simulated VPS (~10 
   - `jsconfig.json`: checkJs, non-strict.
   - `package.json`: documents typescript 5.6.3 only; it is never installed into the image.
 - The image (`Dockerfile`, digest-pinned `python:3.12-slim`) copies only `ah_dashboard/` and `serve.py`; it runs as uid 10001 `app` with `CMD python serve.py`.
-- The project folder may be a VirtualBox shared folder: avoid symlinks (no `npm install` in it). Containers that write into it may need to run as root (the deploy tooling does this).
+- The project folder may be a VirtualBox shared folder: avoid symlinks (no `npm install` in it). Containers that write into it may need to run as root.
 
 ## Architecture
 
@@ -106,12 +105,12 @@ Plain ES modules with no build step. `main.js` is the composition root. Allowed 
 - **The seal secret**: `TOKEN_SEAL_SECRET`, or a generated `instance/token_seal.secret`. It must never be stored in the database, and changing it has the same effect as changing the labels.
 - **localStorage keys** in `static/js/core/storage.js` `KEYS` (`ah_settings`, `ah_instore`, `ah_presets`, `ah_preset_order`, `ah_stores`, `ah_lang`, `ah_view`, `ah_bonus_cat`, `ah_bonus_filters`, `ah_bonus_groups`, `ah_bonus_notice`, `ah_theme`, `ah_blacklist`, `ah_liked`, `ah_show_hidden`, `ah_cols`, `*_folded`), plus `ah_sync` in `sync/sync.js`. Renaming one wipes users' settings. `theme-init.js` also reads `ah_theme`.
 - **Cookie name**: `ahb_admin` / `__Host-ahb_admin` (when `ADMIN_COOKIE_SECURE`). Session keys: `sid`, `csrf`, `user`, `admin_login_at`, `admin_seen_at`, `admin_pw`, `login_pending`.
-- **One server process / one instance per AH login.** AH rotates the refresh token on every renewal, so a second process or deployment invalidates the other's token. `ah-deploy` stops the old container before starting the new one. Rate limits, lockouts and caches are in memory.
+- **One server process / one instance per AH login.** AH rotates the refresh token on every renewal, so a second process or deployment invalidates the other's token. The server's deploy command must stop the old container before starting the new one. Rate limits, lockouts and caches are in memory.
 - **No custom User-Agent towards AH GraphQL** (`AH_USER_AGENT` unset). A custom one made AH fail with "Subgraph errors redacted".
 - **Database schema** (`db.py`):
   - A new table or index goes into `_SCHEMA` (`IF NOT EXISTS`), with no version bump.
   - A change to an existing table is a new `MIGRATIONS[n]` step plus a bump of `SCHEMA_VERSION` (now 4). `_SCHEMA` must describe the end state, because fresh databases are created from it directly.
-  - Never lower `SCHEMA_VERSION`: a database with a higher `user_version` is refused (`RuntimeError`), and `ah-deploy`'s rollback relies on this.
+  - Never lower `SCHEMA_VERSION`: a database with a higher `user_version` is refused (`RuntimeError`), and the deploy rollback relies on this.
   - `users.password_hash` is kept but always `''`.
 - **The synced settings whitelist** has exactly one source: `auth/users.SYNC_KEYS`, which reaches the page as `syncKeys` (a test checks this). Per-device keys (`ah_cols`, folded states, `ah_bonus_notice`) are deliberately not synced.
 - **`.env.example` holds no real values**. `test_security_fixes.test_env_example_holds_no_secrets` requires `AH_ACCESS_TOKEN`, `AH_REFRESH_TOKEN`, `ADMIN_PASSWORD_HASH` and `TOKEN_SEAL_SECRET` to be empty and rejects token- or hash-shaped values.
@@ -225,18 +224,14 @@ Plain ES modules with no build step. `main.js` is the composition root. Allowed 
 - Swap any service by assignment: `services(app).ah = fake`, `services(app).login = LoginClient(..., http=FakeOP().http)` (see `enable_login`).
 - Fake tokens in tests must stay obviously fake (`.gitleaks.toml` has no allowlist).
 - There is no browser/E2E harness in the repo. To look at the UI, serve `create_app(TestingConfig)` with a canned `services(app).ah` fake via Waitress, in a throwaway container. Never use the real `.env`.
-- **Deploy tests** (`deploy/tests/`) use a local registry, `ahtest-*` names and Caddy `tls internal`; they never contact AH. `smoke-image.sh` asserts CSP, no `Server` header, `/admin/` 404, `/api/bonus` 503, read-only code, user `app`.
+- `deploy/smoke-image.sh` (run by `release.yml` on the built image) asserts CSP, no `Server` header, `/admin/` 404, `/api/bonus` 503, read-only code, user `app`; it never contacts AH.
 
 ## Deployment
 
 - `compose.yaml` (local): 127.0.0.1:8733; read-only rootfs, `tmpfs /tmp`, `cap_drop: ALL`, `no-new-privileges`; volumes `ah-instance` (`/app/instance`: DB + seal secret, **must persist**) and `ah-logs`. Keep `ADMIN_PASSWORD_HASH` single-quoted in `.env` (Compose expands `$`).
-- Production goes through `deploy/ah-iac` → Ansible (`site.yml`: base, docker, caddy, app) in the `ah-iac-tools` container.
-  - The app has no published port; Caddy reaches it on the external `edge` network.
-  - `app.env` always has `APP_ENV=production`, `TRUSTED_PROXY=*`, `TRUSTED_PROXY_COUNT=1`, `ADMIN_COOKIE_SECURE=true`, `PUBLIC_BASE_URL=https://<domain>`. These and the vault secrets can't be overridden via `app_settings`.
-  - Images are deployed by digest only: `ah-deploy deploy <image_repo>@sha256:<64hex>`. It backs up the volume, stops then starts, waits for health, and rolls back automatically (restoring the backup only if the old image refuses the DB).
-  - CI uses a restricted SSH key → `ah-deploy-ssh` (`deploy`, `status`, `rollback` only).
-- `release.yml` (main): CI → build → `smoke-image.sh` → Trivy CRITICAL → GHCR push → deploy if the repository variable `DEPLOY_ENABLED` is `true` (a job `if:` can't see environment variables; the connection values are in environment `production`, from vps-platform's `vpsctl github ah-dashboard`). `ci.yml` also runs `pip-audit` and gitleaks over the full history.
-- Secrets (vault password, deploy key) live in `$AH_IAC_HOME` (default `~/.config/ah-dashboard`), never in the repo; don't read them.
+- Production: the image behind an HTTPS reverse proxy (no published port), with the settings `APP_ENV=production`, `TRUSTED_PROXY=*`, `TRUSTED_PROXY_COUNT=1`, `ADMIN_COOKIE_SECURE=true`, `PUBLIC_BASE_URL=https://<domain>` (README "Deploy").
+- `release.yml` (main): CI → build → `deploy/smoke-image.sh` → Trivy CRITICAL → GHCR push → if the repository variable `DEPLOY_ENABLED` is `true`, SSH with `DEPLOY_SSH_KEY` and run `deploy <IMAGE_REPO>@sha256:<digest>` (a job `if:` can't see environment variables; the connection values are in environment `production`). The server's deploy command backs up the volumes, stops then starts, waits for health and rolls back. `ci.yml` also runs `pip-audit` and gitleaks over the full history.
+- Secrets live in the server's secret store, never in the repo; don't read them.
 
 ## Gotchas
 

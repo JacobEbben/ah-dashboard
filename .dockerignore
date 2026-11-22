@@ -26,8 +26,7 @@ package-lock.json
 jsconfig.json
 pyproject.toml
 
-# Deployment and CI code: not part of the app image (the inventory holds the
-# encrypted vault; keep it out of every build context).
+# Deployment and CI code: not part of the app image.
 deploy/
 .github/
 ci/

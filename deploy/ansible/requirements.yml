@@ -1,7 +1,0 @@
-# Ansible collections, pinned to exact versions (installed into the toolbox
-# image, deploy/tools/Dockerfile). Bump deliberately and run `deploy/ah-iac check`.
-collections:
-  - name: ansible.posix          # authorized_key
-    version: "2.2.2"
-  - name: community.general      # ufw
-    version: "12.6.7"

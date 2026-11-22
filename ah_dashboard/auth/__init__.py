@@ -5,7 +5,7 @@ The admin panel needs the admin password or a user promoted to admin.
 
 Modules (no module here imports a blueprint):
 
-- :mod:`.users` — accounts (e-mail, Google account id; no passwords) and
+- :mod:`.users` — accounts (linked to login-service users; no passwords) and
   their synced settings.
 - :mod:`.sessions` — the server-side list of active sign-ins plus starting
   and ending the signed session cookie (``begin`` / ``end``).

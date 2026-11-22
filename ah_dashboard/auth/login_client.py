@@ -1,8 +1,8 @@
 """Signing in through the central login service (OpenID Connect, authorization code + PKCE).
 
-The connection (LOGIN_ISSUER, LOGIN_CLIENT_ID, LOGIN_CLIENT_SECRET) comes from the
-settings (the secret from the vault); it can't be changed from the web. Same client
-as File Share's (file_share/login_client.py), reviewed twice there.
+The connection comes from the admin panel (auth/login_connection.py) or the
+LOGIN_ISSUER / LOGIN_CLIENT_ID / LOGIN_CLIENT_SECRET settings; only the admin password
+can change it. The same client design is used by File Share.
 
 Every ID token is checked: RS256 signature against the issuer's published keys
 (JWKS), ``iss``, ``aud``/``azp`` (our client id), ``exp``/``iat``, and the

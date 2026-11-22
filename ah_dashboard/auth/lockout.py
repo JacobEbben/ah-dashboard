@@ -43,9 +43,9 @@ def login_capacity() -> bool:
     addresses must not exhaust the server. 0 = off.
 
     Only for work that is expensive to the server: anything cheap that anyone
-    can trigger (e.g. starting a Google sign-in) must NOT spend this shared
+    can trigger (e.g. starting a sign-in) must NOT spend this shared
     budget, or it becomes a way to lock everyone out. Those get a per-client
-    limit instead (``web/google.py``)."""
+    limit instead (``web/login.py``)."""
     s = services()
     return s.rate_limiter.allow("login", SHARED, s.settings.limits.login_attempts_per_minute, 60)
 

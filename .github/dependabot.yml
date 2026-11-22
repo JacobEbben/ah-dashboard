@@ -1,19 +1,14 @@
 # Pinned versions only stay safe when something proposes updates. Each update
-# arrives as a pull request and goes through CI (including the deployment tests).
+# arrives as a pull request and goes through CI.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
 
-  # App image base (Dockerfile digest) and the Ansible toolbox base.
+  # App image base (Dockerfile digest).
   - package-ecosystem: docker
-    directories: ["/", "/deploy/tools"]
-    schedule: { interval: weekly }
-
-  # Ansible toolbox Python packages (hashed lock generated from requirements.in).
-  - package-ecosystem: pip
-    directory: /deploy/tools
+    directory: /
     schedule: { interval: weekly }
 
   # App dependencies: requirements.txt ranges; regenerate requirements.lock in the PR

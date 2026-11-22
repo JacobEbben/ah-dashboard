@@ -2,7 +2,7 @@
 # Smoke test of a built image, from the outside (the image contains no tests).
 # Starts it like production (read-only, no capabilities), WITHOUT an AH login
 # and without contacting AH, and checks what unit tests can't see.
-#   deploy/tests/smoke-image.sh <image>
+#   deploy/smoke-image.sh <image>
 set -euo pipefail
 IMAGE="${1:?usage: smoke-image.sh <image>}"
 NAME="ah-smoke-$$"

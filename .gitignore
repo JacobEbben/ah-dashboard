@@ -5,11 +5,9 @@ logs/
 instance/
 node_modules/
 
-# Inventory written by the VPS simulation (deploy/tests/vps-sim.sh)
-deploy/ansible/inventory/sim/
 
 # ---- secrets: never commit, even when created here by accident -------------
-# Settings with the AH login, admin hash, Google secret, seal secret
+# Settings with the AH login, admin hash, login-service secret, seal secret
 .env
 .env.*
 !.env.example
@@ -18,8 +16,7 @@ deploy/ansible/inventory/sim/
 *.db-wal
 *.db-shm
 token_seal.secret
-# Deployment: the vault password and SSH keys live in ~/.config/ah-dashboard,
-# never here. (vault.yml itself IS committed: it is encrypted.)
+# Deployment secrets (vault passwords, SSH keys) never belong in the repository.
 vault-pass
 *vault-pass*
 deploy_key
