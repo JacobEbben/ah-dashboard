@@ -11,11 +11,13 @@ export const KEYS = {
   stores: 'ah_stores',
   lang: 'ah_lang',
   view: 'ah_view',                // 'bargains' | 'bonus'
-  bonusCat: 'ah_bonus_cat',       // selected Bonus category
-  bonusFilters: 'ah_bonus_filters',  // Bonus view: {liked} (the Liked pill; older versions also kept filters here)
-  bonusFiltersFolded: 'ah_bonus_filters_folded',   // unused since the Bonus filters were removed; kept so the name stays reserved
-  bonusGroups: 'ah_bonus_groups',  // Bonus category groups [{id, name, cats}]
-  bonusGroupsFolded: 'ah_bonus_groups_folded',
+  bonusCat: 'ah_bonus_cat',       // old: the Bonus category shown; removed on load (bonus/filters.js)
+  bonusFilters: 'ah_bonus_filters',  // Bonus view: {liked, cats} (the Liked pill, the categories; older versions kept other filters here: ignored)
+  bonusFiltersFolded: 'ah_bonus_filters_folded',   // the Bonus view's Filters panel
+  bonusPresets: 'ah_bonus_presets',            // Bonus presets {name: {cats}}
+  bonusPresetOrder: 'ah_bonus_preset_order',   // Bonus preset names in the user's own order
+  bonusGroups: 'ah_bonus_groups',  // old: category groups [{id, name, cats}]; turned into presets once, then removed
+  bonusGroupsFolded: 'ah_bonus_groups_folded',   // old; unused, kept so the name stays reserved
   bonusNoticeSeen: 'ah_bonus_notice',  // start date of the Bonus week whose "liked on Bonus" notice was closed
   theme: 'ah_theme',              // 'dark' (absent = light, the default)
   filtersFolded: 'ah_filters_folded',             // bargains' Filters panel

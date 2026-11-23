@@ -1,0 +1,33 @@
+{# The Bonus view's Filters, like the bargains': the categories (chips) and the presets
+   (static/js/bonus/filters.js, ui/presets.js). The button shows how many of its filters are on. #}
+<div id="bonusFilterPanel" class="filterpanel collapsed">
+  <button type="button" id="bonusFilterToggle" class="foldbtn filterbtn" aria-expanded="false" aria-controls="bonusFilterBody">
+    <span class="chev">▾</span> <span data-i18n="filters"></span><span id="bonusFilterCount" class="filtercount" hidden></span>
+  </button>
+  <div id="bonusFilterBody" class="filters">
+    {# Hidden until the Bonus is loaded: the chips are the shown week's categories. #}
+    <div id="bonusCatSection" class="filterrow fullrow" hidden>
+      <div class="labelrow">
+        <label data-i18n="bonusCategories"></label>
+        <div class="cat-actions">
+          <button type="button" id="bonusCatAll" class="mini" data-i18n="all" data-i18n-title="allBonusCatsTitle" aria-pressed="true"></button>
+          <button type="button" id="bonusCatNone" class="mini" data-i18n="none"></button>
+        </div>
+      </div>
+      <div id="bonusCatChips" class="cats"></div>
+    </div>
+    <div class="filterrow fullrow">
+      <label for="bonusPresetSel" data-i18n="presets"></label>
+      <div class="preset-actions">
+        <select id="bonusPresetSel"><option value=""></option></select>
+        <button type="button" id="bonusPresetUpdate" class="mini" data-i18n="updatePreset" data-i18n-title="updatePresetTitle" disabled></button>
+        <button type="button" id="bonusPresetDel" class="mini" data-i18n="delete" data-i18n-title="deleteTitle" disabled></button>
+      </div>
+      <div class="preset-actions">
+        <input id="bonusPresetName" type="text" data-i18n-ph="presetNamePh" maxlength="40" autocomplete="off"
+               data-i18n-aria="presetNamePh">
+        <button type="button" id="bonusPresetSave" class="mini" data-i18n="save" data-i18n-title="saveTitle"></button>
+      </div>
+    </div>
+  </div>
+</div>

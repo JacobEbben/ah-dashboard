@@ -1,7 +1,7 @@
 // @ts-check
 // Rename a pill in place: double-click it (or press F2 while it has focus) and
 // it turns into a text field with the same look. Enter or leaving the field
-// saves; Escape cancels. Used for Bonus category groups and bargain presets.
+// saves; Escape cancels. Used for the presets of both views (ui/presets.js).
 //
 // onCommit(newName) returns '' / undefined when saved, or an error message:
 // the field then stays open and shows the message (e.g. "name in use").

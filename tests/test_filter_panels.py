@@ -1,4 +1,4 @@
-"""Bargains: the filters are a fold-out panel with a count. Bonus: no filters (AH order, liked first)."""
+"""Both views: the filters are a fold-out panel with a count, plus a presets bar on the page."""
 from __future__ import annotations
 
 import re
@@ -23,7 +23,16 @@ def test_bargain_filters_are_a_fold_out_panel(client):
         assert gone not in page, gone
 
 
-def test_bonus_view_has_no_filter_panel(client):
+def test_bonus_filters_are_categories_and_presets_like_the_bargains(client):
     page = client.get("/").get_data(as_text=True)
-    for gone in ("bonusFilterPanel", "bonusMinSave", "bonusSort", "bonusTypes"):
+    m = re.search(r'<div id="bonusFilterPanel".*?<div id="bonusFilterBody"(.*?)\n</div>\n', page, re.S)
+    assert m
+    panel = m.group(1)
+    for el in ('id="bonusCatChips"', 'id="bonusCatAll"', 'id="bonusPresetSel"', 'id="bonusPresetSave"'):
+        assert el in panel, el
+    assert re.search(r'id="bonusFilterToggle"[^>]*aria-controls="bonusFilterBody"', page)
+    for el in ('id="bonusPresetBar"', 'id="bonusPresetAddBtn"', 'id="bonusLikedBtn"'):
+        assert el in page and el not in panel, el
+    # No more category groups or one-category-at-a-time pill row, and no deal or sort filters.
+    for gone in ("bonusGroup", "bonusCats", "bonusMinSave", "bonusSort", "bonusTypes"):
         assert gone not in page, gone

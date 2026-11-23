@@ -45,15 +45,27 @@
 
   {# View 2: this week's national Bonus #}
   <div id="bonusView" hidden>
-    <div id="bonusPanelRow" class="panelrow">
-      {% include "partials/_bonus_groups_panel.html" %}
-    </div>
     {# Once AH has published next week: this week / next week (static/js/bonus/index.js). #}
     <div id="bonusWeekSeg" class="segmented weekseg" role="group" data-i18n-aria="bonusWeeks" hidden>
       <button type="button" class="segbtn active" data-week="current" aria-pressed="true" data-i18n="bonusThisWeek"></button>
       <button type="button" class="segbtn" data-week="next" aria-pressed="false" data-i18n="bonusNextWeek" data-i18n-title="bonusNextWeekTitle"></button>
     </div>
-    <div id="bonusCats" class="bonuscats" role="group" data-i18n-aria="bonusCategories" hidden></div>
+    {# Like the bargains: the presets bar ("All types", the saved category selections, ＋ opens Filters at
+       the new preset's name; static/js/bonus/filters.js, ui/presets.js) and the Liked filter pill
+       (hidden until the Bonus is loaded). #}
+    <div class="quickrows">
+      <div class="quickbar chipstrip">
+        <div class="segmented presetseg">
+          <div id="bonusPresetBar" class="presetbar segparts" role="group" data-i18n-aria="presets"></div>
+          <button type="button" id="bonusPresetAddBtn" class="segbtn segadd" aria-controls="bonusFilterBody" data-i18n-aria="addPreset" data-i18n-title="addPreset">＋</button>
+        </div>
+        <span id="bonusPresetLive" class="sronly" aria-live="polite"></span>
+        <button type="button" id="bonusLikedBtn" class="presetbtn catpill likedpill" aria-pressed="false" data-i18n-title="bonusLikedTitle" hidden></button>
+      </div>
+    </div>
+    <div id="bonusPanelRow" class="panelrow">
+      {% include "partials/_bonus_filters_panel.html" %}
+    </div>
     {# Search over every Bonus category. Hidden until the Bonus is loaded. #}
     <div id="bonusSearchBar" class="searchbar" role="search" hidden>
       <label for="bonusSearch" class="searchlabel" data-i18n="searchBonus"></label>

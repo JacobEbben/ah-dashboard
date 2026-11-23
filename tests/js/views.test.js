@@ -4,8 +4,8 @@ import { test } from 'node:test';
 
 import { activeInStore, filterOffers, groupKeyFn, IN_STORE_MS, inStoreUntil, isSpecial, knownCats, mergeAcrossStores, sortGroupKeys, sorter, specialSummary }
   from '../../ah_dashboard/static/js/bargains/model.js';
-import { categoryGroups, groupMemberRows, groupOffers, indexDeals, likedOffers, needsFetch, parseGroups, parseLikedPill,
-  sortOffers } from '../../ah_dashboard/static/js/bonus/model.js';
+import { categoryGroups, groupMemberRows, groupsToPresets, indexDeals, likedOffers, needsFetch, parseCats, parseLikedPill,
+  selectCats, sortOffers } from '../../ah_dashboard/static/js/bonus/model.js';
 import { mergePrefs } from '../../ah_dashboard/static/js/sync/merge.js';
 
 const bargain = (id, title, extra = {}) => ({
@@ -123,13 +123,21 @@ test('Bonus order: liked first, otherwise AH order', () => {
   assert.deepEqual(sortOffers(list, () => false).map(o => o.id), [1, 2, 3]);
 });
 
-test('categories in AH order; groups merge their categories, each offer once', () => {
+test('categories in AH order; the chosen categories keep that order', () => {
   const items = [offer(1, 'Melk'), offer(2, 'Brood', { category: 'Brood' }), offer(1, 'Melk', { category: 'Brood' })];
   const byCat = categoryGroups(items, ['Brood', 'Zuivel', 'Leeg']);
   assert.deepEqual([...byCat.keys()], ['Brood', 'Zuivel']);
-  const offers = groupOffers({ id: 'g', name: 'Ontbijt', cats: ['Zuivel', 'Brood'] }, byCat);
-  assert.deepEqual(offers.map(o => o.id), [2, 1]);              // AH order, the duplicate melk once
-  assert.deepEqual(likedOffers(items, o => o.id === 1).map(o => o.id), [1]);
+  assert.equal(selectCats(byCat, 'all'), byCat);
+  assert.deepEqual([...selectCats(byCat, ['Zuivel', 'Brood', 'Kaas']).keys()], ['Brood', 'Zuivel']);
+  assert.deepEqual([...selectCats(byCat, []).keys()], []);
+  assert.deepEqual(likedOffers(items, o => o.id === 1).map(o => o.id), [1]);   // a product in two categories once
+});
+
+test('category selections from storage or a preset', () => {
+  assert.equal(parseCats(undefined), 'all');
+  assert.equal(parseCats('all'), 'all');
+  assert.deepEqual(parseCats(['Kaas', 'Kaas', '', 3, 'Vis']), ['Kaas', 'Vis']);
+  assert.deepEqual(parseCats([]), []);
 });
 
 test('an incomplete Bonus is fetched again; a complete one only on Refresh', () => {
@@ -144,19 +152,17 @@ test('deal index covers group members', () => {
   assert.deepEqual([...deals], [[1, '25%'], [7, '1+1']]);
 });
 
-test('category groups from storage are validated', () => {
-  const raw = [
+test('old category groups become presets', () => {
+  const { presets, order } = groupsToPresets([
     { id: 'abc', name: '  Ontbijt  ', cats: ['Zuivel', 'Brood', 'Zuivel'] },
-    { id: 'abc', name: 'dup id', cats: [] },
-    { id: 'BAD!', name: 'bad id', cats: [] },
-    { id: 'def', name: '', cats: ['Brood', 'Kaas'] },               // Brood is already in the first group
-  ];
-  const groups = parseGroups(raw, n => `Group ${n}`, { maxGroups: 30, maxName: 30, maxCats: 100 });
-  assert.deepEqual(groups, [
-    { id: 'abc', name: 'Ontbijt', cats: ['Zuivel', 'Brood'] },
-    { id: 'def', name: 'Group 2', cats: ['Kaas'] },
+    { id: 'def', name: 'Ontbijt', cats: ['Kaas'] },                  // same name: skipped
+    { id: 'ghi', name: '', cats: ['Vis'] },                          // no name: skipped
+    { id: 'jkl', name: 'Leeg', cats: 'nonsense' },
   ]);
-  assert.deepEqual(parseGroups('nonsense', () => '', { maxGroups: 1, maxName: 1, maxCats: 1 }), []);
+  assert.deepEqual(order, ['Ontbijt', 'Leeg']);
+  assert.deepEqual({ ...presets }, { Ontbijt: { cats: ['Brood', 'Zuivel'] }, Leeg: { cats: [] } });
+  const none = groupsToPresets('nonsense');
+  assert.deepEqual([{ ...none.presets }, none.order], [{}, []]);
 });
 
 // ---- settings sync ----------------------------------------------------------------------------

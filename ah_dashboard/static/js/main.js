@@ -6,7 +6,7 @@
 // Layers (tests/test_architecture.py checks the imports):
 //   core/      dom, storage, i18n, api, events, config, format, unit, offers — no app imports
 //   lists/     liked & hidden products                                          — core
-//   ui/        cards, density, theme, view, drag / reorder / rename widgets     — core, lists
+//   ui/        cards, density, theme, view, reorder / rename / presets widgets  — core, lists
 //   sync/      settings sync for signed-in users                                — core
 //   bargains/, bonus/  the two views (feature folders)                         — core, lists, ui
 // Features never import each other: they talk through core/events.js.

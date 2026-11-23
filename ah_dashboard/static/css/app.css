@@ -548,34 +548,14 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
 .now .from { font-family: var(--font-text); font-size: calc(11px * var(--cs)); font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
   margin-right: calc(5px * var(--cs)); color: var(--muted); }
 
-/* Bonus: category row (one category shown at a time) */
-.bonuscats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
-.bonuscats[hidden] { display: none; }
+/* Bonus: the Liked filter pill next to the presets bar, with its count */
+.likedpill[hidden] { display: none; }
+.quickbar .likedpill { height: 46px; }
+@media (max-width: 700px) { .quickbar .likedpill { height: 44px; } }
 .catpill { display: inline-flex; align-items: center; gap: 7px; flex: none; }
 .catpill .catcount { font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 3px;
   background: var(--chip); color: var(--muted); }
 .catpill.active .catcount { background: color-mix(in srgb, var(--on-accent) 22%, transparent); color: var(--on-accent); }
-/* Category groups: group pills carry a small stack icon; category pills can be
-   dragged onto another pill (static/js/dragdrop.js). While dragging, the
-   dragged pill and the pill under the pointer get an azure dashed outline;
-   nothing moves. Group pills can be dragged to reorder them (they move). */
-.catpill .groupicon { width: 14px; height: 14px; flex: none; margin-left: -2px; }
-.catpill[data-kind="cat"] { cursor: grab; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-.bonuscats.dropping, .bonuscats.dropping .catpill { cursor: grabbing; }
-.catpill.dragging, .catpill.droptarget { outline: 2px dashed var(--accent); outline-offset: 2px; }
-.catpill.droptarget:not(.active) { color: var(--accent-ink); border-color: var(--accent); }
-.catpill.grouppill { cursor: grab; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-.bonuscats.reordering, .bonuscats.reordering .catpill { cursor: grabbing; }
-/* Category groups panel */
-.grouphint { margin: 0 0 4px; max-width: 70ch; }
-.grouplist { display: grid; gap: 14px; }
-.grouprow { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-ctl);
-  background: var(--surface-2); }
-.grouphead { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.grouphead .groupname { flex: 1 1 180px; min-width: 0; max-width: 280px; font-weight: 700; }
-.grouphead .groupadd { flex: 0 1 220px; min-width: 0; }
-.grouphead .mini { padding: 8px 14px; border-radius: var(--radius-ctl); }
-.hiddenchip.absent .hiddenname { color: var(--muted); font-style: italic; }
 
 /* Bargain that is also in this week's Bonus: a small gules offer tag plus the deal (meta line) */
 .bonusnote { display: flex; align-items: center; gap: calc(6px * var(--cs)); min-width: 0; font-size: calc(12px * var(--cs)); color: var(--muted); }
@@ -583,11 +563,6 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
   text-transform: uppercase; line-height: 1.2; color: var(--on-gules); background: var(--gules);
   border-radius: 2px; padding: calc(2px * var(--cs)) calc(6px * var(--cs)); }
 .bonusdeal { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-@media (max-width: 700px) {
-  /* Phones: one sideways-scrolling strip instead of many rows */
-  .bonuscats { flex-wrap: nowrap; overflow-x: auto; padding: 2px 2px 6px; margin-left: -2px; margin-right: -2px;
-    scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
-}
 
 /* Sign in / Sign out in the header: the same size and shape as the other
    header buttons (secondary style), whether it is a link or a form button. */
@@ -678,7 +653,7 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
 .mystore .shere[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
 .discseg { margin-top: 10px; max-width: 460px; height: 46px; }
 .discseg .segbtn { font-size: 14px; }
-/* Bonus (admins): this week / next week, above the category pills. */
+/* Bonus: this week / next week, above the presets bar. */
 .weekseg { width: max-content; max-width: 100%; margin-top: 14px; }
 .weekseg .segbtn { padding: 8px 16px; font-size: 14px; }
 .weekseg[hidden] { display: none; }
