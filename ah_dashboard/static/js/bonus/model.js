@@ -141,26 +141,33 @@ export function indexDeals(items) {
 }
 
 /**
- * The rows of a group deal's product list. Titles that occur more than once
- * get their size ("AH Pindakaas · 350 g"), so the rows can be told apart;
- * rows that are still the same (same title, no or the same size) are merged
- * into one, keeping the first product's id for the link.
+ * The rows of a group deal's product list: one per product (by id), so the
+ * list always matches its "N products" label. Titles that occur more than
+ * once get their size ("AH Pindakaas · 350 g"); rows that would still read
+ * the same (same title, no or the same size) are numbered ("AH Cola (1)",
+ * "AH Cola (2)"). Each row links to its own product.
  * @param {unknown} products
  * @returns {{id: number, label: string}[]}
  */
 export function groupMemberRows(products) {
+  /** @type {Set<unknown>} */
+  const ids = new Set();
   /** @type {{id: number, title: string, size: string}[]} */
   const list = (Array.isArray(products) ? products : [])
-    .filter(m => m && typeof m.title === 'string' && m.title.trim())
+    .filter(m => m && typeof m.title === 'string' && m.title.trim() && !ids.has(m.id) && ids.add(m.id))
     .map(m => ({ id: m.id, title: m.title.trim(), size: typeof m.size === 'string' ? m.size.trim() : '' }));
+  /** @param {string[]} labels @returns {Map<string, number>} */
+  const tally = labels => labels.reduce((n, l) => n.set(l, (n.get(l) || 0) + 1), new Map());
+  const titles = tally(list.map(m => m.title));
+  const labels = list.map(m => ((titles.get(m.title) || 0) > 1 && m.size ? `${m.title} · ${m.size}` : m.title));
+  const same = tally(labels);
   /** @type {Map<string, number>} */
-  const counts = new Map();
-  for (const m of list) counts.set(m.title, (counts.get(m.title) || 0) + 1);
-  /** @type {Map<string, {id: number, label: string}>} */
-  const rows = new Map();
-  for (const m of list) {
-    const label = (counts.get(m.title) || 0) > 1 && m.size ? `${m.title} · ${m.size}` : m.title;
-    if (!rows.has(label)) rows.set(label, { id: m.id, label });
-  }
-  return [...rows.values()];
+  const seen = new Map();
+  return list.map((m, i) => {
+    const label = labels[i];
+    if ((same.get(label) || 0) < 2) return { id: m.id, label };
+    const n = (seen.get(label) || 0) + 1;
+    seen.set(label, n);
+    return { id: m.id, label: `${label} (${n})` };
+  });
 }

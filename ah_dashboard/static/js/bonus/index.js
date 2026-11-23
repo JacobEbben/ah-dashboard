@@ -144,13 +144,18 @@ function card(o) {
 // unfolds them, each linked to ah.nl. Open lists stay open across re-renders.
 /** @type {Set<string>} */
 const openGroups = new Set();
+/** The most products the server lists per group deal (ah/mapping.py MAX_GROUP_PRODUCTS). */
+const MAX_LISTED = 200;
 
 /** @param {Offer} o @param {number} count */
 function groupLine(o, count) {
   if (!o.isGroup) return '';
   const members = groupMemberRows(o.products);
-  const label = count > 1 ? t('bonusGroupN', count) : members.length > 1 ? t('bonusGroupN', members.length) : t('bonusGroup');
-  if (members.length < 2) return count !== 1 ? html`<div class="unit">${label}</div>` : '';
+  // The number of listed products, so the label matches the list. AH's own count only
+  // without a list, or when the list is cut off (the server lists at most 200).
+  const n = members.length && members.length < MAX_LISTED ? members.length : Math.max(count, members.length);
+  const label = n > 1 ? t('bonusGroupN', n) : t('bonusGroup');
+  if (members.length < 2) return n !== 1 ? html`<div class="unit">${label}</div>` : '';
   const open = openGroups.has(productKey(o));
   const items = members.map(m => {
     const url = productUrl(m.id);

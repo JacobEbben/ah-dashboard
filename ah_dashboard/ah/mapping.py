@@ -22,7 +22,7 @@ from ..domain.pricing import bonus_price, deal_type
 from .client import AHError
 
 MAX_TEXT = 200
-MAX_GROUP_PRODUCTS = 200   # products listed per group deal
+MAX_GROUP_PRODUCTS = 200   # products listed per group deal (static/js/bonus/index.js MAX_LISTED)
 MAX_PRODUCT_COUNT = 10_000  # a group deal's product count beyond this is not believable
 
 

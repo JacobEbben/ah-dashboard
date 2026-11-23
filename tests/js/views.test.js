@@ -179,7 +179,7 @@ test('merging settings changed on two devices', () => {
   assert.deepEqual(JSON.parse(merged.ah_presets), { Theirs: { minDisc: '25' }, Both: { minDisc: '10' }, Mine: { minDisc: '50' } });
 });
 
-test('groupMemberRows: same titles get their size, identical rows merge', () => {
+test('groupMemberRows: one row per product; same titles get their size, then a number', () => {
   const rows = groupMemberRows([
     { id: 1, title: 'AH Pindakaas', size: '350 g' },
     { id: 2, title: 'AH Pindakaas', size: '600 g' },
@@ -188,12 +188,15 @@ test('groupMemberRows: same titles get their size, identical rows merge', () => 
     { id: 5, title: 'AH Cola' },
     { id: 6, title: 'AH Pindakaas', size: '350 g' },
     { id: 7, title: '  ' },
+    { id: 3, title: 'AH Hagelslag', size: '400 g' },
   ]);
   assert.deepEqual(rows, [
-    { id: 1, label: 'AH Pindakaas · 350 g' },
+    { id: 1, label: 'AH Pindakaas · 350 g (1)' },
     { id: 2, label: 'AH Pindakaas · 600 g' },
     { id: 3, label: 'AH Hagelslag' },
-    { id: 4, label: 'AH Cola' },
+    { id: 4, label: 'AH Cola (1)' },
+    { id: 5, label: 'AH Cola (2)' },
+    { id: 6, label: 'AH Pindakaas · 350 g (2)' },
   ]);
   assert.deepEqual(groupMemberRows(null), []);
 });
