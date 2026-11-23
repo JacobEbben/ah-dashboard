@@ -121,7 +121,7 @@ function card(o) {
     ${metaLine(meta, offerUnitPrice(o))}
     ${groupLine(o, count)}
     <div class="prices">
-      <span class="now">${now != null ? html`${o.priceFrom ? html`<span class="from">${t('priceFrom')}</span>` : ''}${euro(now)}` : ''}</span>
+      <span class="now">${now != null ? euro(now) : ''}</span>
       ${was != null && was !== now ? html`<span class="was">${euro(was)}</span>` : ''}
       ${now != null && minQty > 1 ? html`<span class="peritem">${t('perItemAt', minQty)}</span>` : ''}
     </div>`;

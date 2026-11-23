@@ -545,8 +545,6 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
 .prices .now { white-space: nowrap; }
 /* Multi-buy deals: the price is per item when buying N; note on its own line */
 .peritem { flex-basis: 100%; font-size: calc(12px * var(--cs)); font-weight: 600; color: var(--muted); margin-top: -4px; }
-.now .from { font-family: var(--font-text); font-size: calc(11px * var(--cs)); font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
-  margin-right: calc(5px * var(--cs)); color: var(--muted); }
 
 /* Bonus: the Liked filter pill next to the presets bar, with its count */
 .likedpill[hidden] { display: none; }
