@@ -37,10 +37,14 @@ import { allowedImageUrl, productKey } from './offers.js';
  *   unknown: can't tell yet (not loaded, or its store failed); upcoming: next week's Bonus
  *
  * @typedef {object} Latest what the cart compares with
- * @property {{storeIds: Set<number>, byKey: Map<string, any>}|null} bargains
+ * @property {{storeIds: Set<number>, byKey: Map<string, any>, byProduct?: Map<string, any[]>}|null} bargains
  * @property {{complete: boolean, byKey: Map<string, any>}|null} bonus
  *
- * @typedef {{entry: CartEntry, current: any|null, status: CartStatus, bonusDeal: string|null, stock: number|null}} CartRow
+ * @typedef {{storeId: number, stock: number, discount: number|null}} StoreStock
+ * @typedef {{entry: CartEntry, current: any|null, status: CartStatus, bonusDeal: string|null, stock: number|null,
+ *            stores: StoreStock[]}} CartRow
+ *   stores: every followed store where the product is a bargain now, with its stock (the bargain cards' coloured
+ *   squares), in the visitor's store order; with a store filter only that store
  *   stock: a bargain still listed: how many units are left at this discount at its store (AH's latest count); else null
  *   bonusDeal: a bargain whose product is also in this week's Bonus: the deal text ('' when AH gave none); else null
  * @typedef {{storeId: number|null, storeName: string, rows: CartRow[]}} CartSection storeId null: the Bonus
@@ -166,8 +170,15 @@ export function cleanEntries(raw, imageHosts = []) {
 export function indexBargains(items, storeIds) {
   /** @type {Map<string, any>} */
   const byKey = new Map();
-  for (const o of items) if (o && pid(o.storeId) !== null) byKey.set(bargainKey(Number(o.storeId), o), o);
-  return { storeIds: new Set(storeIds), byKey };
+  /** @type {Map<string, any[]>} productKey -> the product's bargains at every store */
+  const byProduct = new Map();
+  for (const o of items) {
+    if (!o || pid(o.storeId) === null) continue;
+    byKey.set(bargainKey(Number(o.storeId), o), o);
+    const list = byProduct.get(productKey(o));
+    if (list) list.push(o); else byProduct.set(productKey(o), [o]);
+  }
+  return { storeIds: new Set(storeIds), byKey, byProduct };
 }
 
 /**
@@ -236,7 +247,8 @@ export function cartSections(entries, latest, { today, storeId, storeOrder, bonu
     const onBonus = entry.kind === 'bargain' && entry.id !== null && bonusDeals.has(entry.id);
     // Only the latest count: a copy from when it was added would be out of date.
     const stock = status === 'ok' && current && Number.isInteger(current.stock) && current.stock >= 0 ? current.stock : null;
-    sec.rows.push({ entry, current, status, bonusDeal: onBonus ? bonusDeals.get(entry.id) || '' : null, stock });
+    sec.rows.push({ entry, current, status, bonusDeal: onBonus ? bonusDeals.get(entry.id) || '' : null, stock,
+      stores: [] });
     shown++;
     if (status === 'gone') gone++;
   }
@@ -247,6 +259,21 @@ export function cartSections(entries, latest, { today, storeId, storeOrder, bonu
     return i < 0 ? 1e5 + id : i;
   };
   const list = [...sections.values()].sort((a, b) => rank(a.storeId) - rank(b.storeId));
+  // Per row: the stores where the product is a bargain now, with their stock.
+  const byProduct = latest.bargains && latest.bargains.byProduct;
+  for (const sec of list) {
+    for (const row of sec.rows) {
+      /** @type {Map<number, StoreStock>} */
+      const seen = new Map();
+      for (const o of (byProduct && byProduct.get(productKey(row.entry))) || []) {
+        const sid = pid(o.storeId);
+        if (sid === null || seen.has(sid) || (storeId != null && sid !== storeId)) continue;
+        if (!Number.isInteger(o.stock) || o.stock < 0) continue;
+        seen.set(sid, { storeId: sid, stock: o.stock, discount: num(o.discount) });
+      }
+      row.stores = [...seen.values()].sort((a, b) => rank(a.storeId) - rank(b.storeId) || a.storeId - b.storeId);
+    }
+  }
   /** @param {CartRow} r */
   const goneLast = r => (r.status === 'gone' ? 1 : 0);
   for (const sec of list) {

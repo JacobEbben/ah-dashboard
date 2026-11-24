@@ -149,6 +149,27 @@ test('per bargain still listed: how many are left at this discount (the latest c
     .sections[0].rows[0].stock, null);                                // not a whole number: not shown
 });
 
+test('per row: the stock at every store where the product is a bargain now, in store order', () => {
+  const entries = [
+    ...entriesFor(bargain(7, 1), { now: 0 }),
+    ...entriesFor(bargain(8, 1), { now: 0 }),                          // gone here, still a bargain at store 3
+    ...entriesFor(bonus(7), { now: 0, week: WEEK }),                   // a Bonus deal that is also a bargain
+  ];
+  const items = [bargain(7, 1, { stock: 2 }), bargain(7, 2, { stock: 4, discount: 35 }), bargain(7, 3, { stock: null }),
+    bargain(8, 3, { stock: 1 })];
+  const latest = { bargains: indexBargains(items, [1, 2, 3]), bonus: indexBonus([bonus(7)], true) };
+  const o = { today: TODAY, storeId: null, storeOrder: [2, 1, 3], bonusTitle: 'Bonus' };
+  const rows = Object.fromEntries(cartSections(entries, latest, o).sections.flatMap(s => s.rows.map(r => [r.entry.key, r.stores])));
+  assert.deepEqual(rows['b:1:7'], [{ storeId: 2, stock: 4, discount: 35 }, { storeId: 1, stock: 2, discount: 50 }]);
+  assert.deepEqual(rows['b:1:8'], [{ storeId: 3, stock: 1, discount: 50 }]);
+  assert.deepEqual(rows['p:7'].map(s => s.storeId), [2, 1]);       // unknown stock (store 3) is left out
+  // With the cart's store filter: only that store.
+  const one = cartSections(entries, latest, { ...o, storeId: 1 }).sections;
+  assert.deepEqual(one.flatMap(s => s.rows.map(r => r.stores.map(x => x.storeId))), [[1], [], [1]]);
+  // Nothing loaded: no squares.
+  assert.ok(cartSections(entries, nothing, o).sections.every(s => s.rows.every(r => r.stores.length === 0)));
+});
+
 test("the cart's own store filter applies only to a followed store", () => {
   assert.equal(activeCartStore('5', [5, 6]), 5);
   assert.equal(activeCartStore('7', [5, 6]), null);     // that store was removed: all stores

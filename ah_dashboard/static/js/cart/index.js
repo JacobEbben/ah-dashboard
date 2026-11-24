@@ -81,6 +81,21 @@ function bonusNote(r) {
   return html`<span class="bonusnote cartbonus" title="${label}"><span class="bonustag">${t('viewBonus')}</span>${r.bonusDeal ? html`<span class="bonusdeal">${r.bonusDeal}</span>` : ''}</span>`;
 }
 
+/**
+ * The coloured squares of the bargain cards: per followed store where the product is a bargain now,
+ * its stock (store colour; tooltip "Centrum: 3 in stock · -50%").
+ * @param {CartRow} r
+ */
+function storeStocks(r) {
+  if (!r.stores.length) return '';
+  const names = new Map(myStores().map(s => [s.id, s.name]));
+  return html`<span class="stocks cartstocks">${r.stores.map(s => {
+    const name = names.get(s.storeId) || String(s.storeId);
+    const label = t('inStock', name, s.stock) + (s.discount != null ? ` · -${s.discount}%` : '');
+    return html`<span class="badge stock ${storeIdClass(s.storeId)}" title="${label}" aria-label="${label}">${s.stock}</span>`;
+  })}</span>`;
+}
+
 /** Why / until when, under the name. @param {CartRow} r @param {string} today */
 function noteText(r, today) {
   const e = r.entry;
@@ -111,7 +126,7 @@ function row(r, today) {
   li.innerHTML = html`
     <span class="cartthumb${img ? '' : ' noimg'}">${img ? html`<img src="${img}" alt="" loading="lazy">` : ''}</span>
     <div class="cartmain">${name}${meta.length ? html`<div class="cartmeta">${meta.map((m, i) => (i ? html` · ${m}` : m))}</div>` : ''}</div>
-    <span class="cartdisc">${discountBadge(r)}${bonusNote(r)}</span>
+    <span class="cartdisc">${storeStocks(r)}${discountBadge(r)}${bonusNote(r)}</span>
     <span class="cartprices"><span class="now">${now != null ? euro(now) : ''}</span>${was != null && now != null && was > now ? html`<span class="was" title="${t('regularPrice')}">${euro(was)}</span>` : ''}</span>
     <button type="button" class="mini cartdel" title="${t('cartRemove')}" aria-label="${t('cartRemove')}: ${e.title}">✕</button>`;
   li.querySelector('.cartdel')?.addEventListener('click', () => removeFromCart([e.key]));
