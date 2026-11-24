@@ -40,7 +40,9 @@ import { allowedImageUrl, productKey } from './offers.js';
  * @property {{storeIds: Set<number>, byKey: Map<string, any>}|null} bargains
  * @property {{complete: boolean, byKey: Map<string, any>}|null} bonus
  *
- * @typedef {{entry: CartEntry, current: any|null, status: CartStatus}} CartRow
+ * @typedef {{entry: CartEntry, current: any|null, status: CartStatus, bonusDeal: string|null, stock: number|null}} CartRow
+ *   stock: a bargain still listed: how many units are left at this discount at its store (AH's latest count); else null
+ *   bonusDeal: a bargain whose product is also in this week's Bonus: the deal text ('' when AH gave none); else null
  * @typedef {{storeId: number|null, storeName: string, rows: CartRow[]}} CartSection storeId null: the Bonus
  */
 
@@ -210,12 +212,15 @@ export function entryStatus(entry, latest, today) {
  * longer followed last), then the Bonus. With ``storeId`` ("I'm in this
  * store") only that store's bargains and the Bonus (national); ``otherStores``
  * counts the bargains left out. Within a section what is gone comes last.
+ * ``bonusDeals``: this week's Bonus by product id (bonus/model.indexDeals, also
+ * the products of group deals): a bargain also on Bonus gets its deal.
  * @param {CartEntry[]} entries
  * @param {Latest} latest
- * @param {{today: string, storeId: number|null, storeOrder: number[], bonusTitle: string}} o
+ * @param {{today: string, storeId: number|null, storeOrder: number[], bonusTitle: string,
+ *          bonusDeals?: Map<number, string>}} o
  * @returns {{sections: CartSection[], shown: number, gone: number, otherStores: number}}
  */
-export function cartSections(entries, latest, { today, storeId, storeOrder, bonusTitle }) {
+export function cartSections(entries, latest, { today, storeId, storeOrder, bonusTitle, bonusDeals = new Map() }) {
   /** @type {Map<number|null, CartSection>} */
   const sections = new Map();
   let otherStores = 0, gone = 0, shown = 0;
@@ -228,7 +233,10 @@ export function cartSections(entries, latest, { today, storeId, storeOrder, bonu
       sec = { storeId: sid, storeName: sid === null ? bonusTitle : entry.storeName || String(sid), rows: [] };
       sections.set(sid, sec);
     }
-    sec.rows.push({ entry, current, status });
+    const onBonus = entry.kind === 'bargain' && entry.id !== null && bonusDeals.has(entry.id);
+    // Only the latest count: a copy from when it was added would be out of date.
+    const stock = status === 'ok' && current && Number.isInteger(current.stock) && current.stock >= 0 ? current.stock : null;
+    sec.rows.push({ entry, current, status, bonusDeal: onBonus ? bonusDeals.get(entry.id) || '' : null, stock });
     shown++;
     if (status === 'gone') gone++;
   }

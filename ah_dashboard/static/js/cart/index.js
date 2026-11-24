@@ -9,7 +9,8 @@
 //
 // It knows the latest results only from events: EV.bargains (the bargains
 // controller) and EV.bonusStatus (the Bonus controller); it asks for this
-// week's Bonus with EV.needBonus when the cart has Bonus deals.
+// week's Bonus with EV.needBonus when the cart has anything: to check its Bonus
+// deals, and to show the Bonus deal next to a bargain whose product is also on Bonus.
 // Listens to EV.cart, EV.bargains, EV.bonusStatus, EV.stores, EV.lang.
 import { $, html } from '../core/dom.js';
 import { emit, on, EV } from '../core/events.js';
@@ -19,7 +20,7 @@ import { t } from '../core/i18n.js';
 import { KEYS, storage } from '../core/storage.js';
 import { config } from '../core/config.js';
 import { allowedImageUrl, productUrl } from '../core/offers.js';
-import { cartEntries, cartHasBonus, clearCart, removeFromCart } from '../lists/cart.js';
+import { cartEntries, clearCart, removeFromCart } from '../lists/cart.js';
 import { myStores, storeIdClass } from '../lists/stores.js';
 import { renderStoreBar } from '../ui/storebar.js';
 
@@ -29,6 +30,8 @@ import { renderStoreBar } from '../ui/storebar.js';
 /** @type {Latest} */
 const latest = { bargains: null, bonus: null };
 let askedBonus = false;
+/** @type {Map<number, string>} this week's Bonus deals by product id (EV.bonusStatus) */
+let bonusDeals = new Map();
 /** @type {string[]} keys of the entries that are gone ("Remove unavailable") */
 let goneKeys = [];
 
@@ -51,9 +54,9 @@ const CART_BAR = {
   selectTitle: name => t('cartStoreTitle', name), backTitle: 'cartStoreBackTitle',
 };
 
-/** The cart has Bonus deals: load this week's Bonus quietly (once), to check them. */
+/** The cart has items: load this week's Bonus quietly (once), to check them and tag bargains on Bonus. */
 function needBonus() {
-  if (askedBonus || latest.bonus || !cartHasBonus()) return;
+  if (askedBonus || latest.bonus || !cartEntries().length) return;
   askedBonus = true;
   emit(EV.needBonus);
 }
@@ -69,6 +72,13 @@ function discountBadge(r) {
   if (d == null) return '';
   return Number(d) === 0 ? html`<span class="badge disc special">${t('specialTag')}</span>`
     : html`<span class="badge disc">-${d}%</span>`;
+}
+
+/** "Bonus · deal" next to a bargain's discount when this week's Bonus also has the product. @param {CartRow} r */
+function bonusNote(r) {
+  if (r.bonusDeal === null) return '';
+  const label = r.bonusDeal ? t('alsoInBonusDeal', r.bonusDeal) : t('alsoInBonus');
+  return html`<span class="bonusnote cartbonus" title="${label}"><span class="bonustag">${t('viewBonus')}</span>${r.bonusDeal ? html`<span class="bonusdeal">${r.bonusDeal}</span>` : ''}</span>`;
 }
 
 /** Why / until when, under the name. @param {CartRow} r @param {string} today */
@@ -93,13 +103,15 @@ function row(r, today) {
     ? html`<a class="cartname" href="${url}" target="_blank" rel="noopener noreferrer" title="${t('viewOnAh', e.title)}">${e.title}</a>`
     : html`<span class="cartname">${e.title}</span>`;
   const now = o.priceNow ?? e.priceNow, was = o.priceWas ?? e.priceWas;
-  const meta = [e.unitSize, noteText(r, today)].filter(Boolean);
+  const left = r.stock !== null
+    ? html`<span class="cartstock${r.stock <= 1 ? ' low' : ''}" title="${t('cartStockTitle')}">${t('cartStock', r.stock)}</span>` : '';
+  const meta = [e.unitSize, left, noteText(r, today)].filter(Boolean);
   const li = document.createElement('li');
   li.className = 'cartrow' + (r.status === 'gone' ? ' gone' : '');
   li.innerHTML = html`
     <span class="cartthumb${img ? '' : ' noimg'}">${img ? html`<img src="${img}" alt="" loading="lazy">` : ''}</span>
     <div class="cartmain">${name}${meta.length ? html`<div class="cartmeta">${meta.map((m, i) => (i ? html` · ${m}` : m))}</div>` : ''}</div>
-    <span class="cartdisc">${discountBadge(r)}</span>
+    <span class="cartdisc">${discountBadge(r)}${bonusNote(r)}</span>
     <span class="cartprices"><span class="now">${now != null ? euro(now) : ''}</span>${was != null && now != null && was > now ? html`<span class="was" title="${t('regularPrice')}">${euro(was)}</span>` : ''}</span>
     <button type="button" class="mini cartdel" title="${t('cartRemove')}" aria-label="${t('cartRemove')}: ${e.title}">✕</button>`;
   li.querySelector('.cartdel')?.addEventListener('click', () => removeFromCart([e.key]));
@@ -130,7 +142,7 @@ function renderCart() {
   }
   const stores = myStores();
   const res = cartSections(entries, latest, { today, storeId: cartStore(), storeOrder: stores.map(s => s.id),
-    bonusTitle: t('viewBonus') });
+    bonusTitle: t('viewBonus'), bonusDeals });
   const notes = [
     ...(res.gone ? [t('cartGoneCount', res.gone)] : []),
     ...(res.otherStores ? [t('cartOtherStores', res.otherStores)] : []),
@@ -164,9 +176,10 @@ export function initCart() {
     latest.bargains = indexBargains(d.items || [], d.storeIds || []);
     renderCart();
   });
-  on(EV.bonusStatus, (/** @type {{status: string, items?: any[], complete?: boolean}} */ d) => {
+  on(EV.bonusStatus, (/** @type {{status: string, deals?: Map<number, string>, items?: any[], complete?: boolean}} */ d) => {
     if (d.status !== 'ready') return;          // loading / failed: keep what was known
     latest.bonus = indexBonus(d.items || [], d.complete === true);
+    bonusDeals = d.deals instanceof Map ? d.deals : new Map();
     renderCart();
   });
   on(EV.stores, renderCart);

@@ -17,7 +17,7 @@ import { adminCsrf, hasStores, initBargains, loadBargains, openStoreSearch, setA
 import { initBonus, loadBonus } from './bonus/index.js';
 import { initCart } from './cart/index.js';
 import { initBlacklist } from './lists/blacklist.js';
-import { cartHasBonus, initCartList } from './lists/cart.js';
+import { cartSize, initCartList } from './lists/cart.js';
 import { initLikes, likedCount } from './lists/likes.js';
 import { initListsPanel } from './lists/panel.js';
 import { initSync } from './sync/sync.js';
@@ -49,11 +49,11 @@ function start() {
   initCart();       // after the bargains: it uses the store list
   // The cart's store bar: its ＋ goes to the Stores panel on the bargains view.
   $('cartStoreManageBtn').addEventListener('click', openStoreSearch);
-  // Refresh reloads whichever view is shown; the cart checks its items against both.
+  // Refresh reloads whichever view is shown; the cart checks its items against both (and tags bargains on Bonus).
   $('go').addEventListener('click', () => {
     if (currentView() === 'bonus') { loadBonus({ force: true }); return; }
     loadBargains();
-    if (currentView() === 'cart' && cartHasBonus()) loadBonus({ force: true, quiet: true });
+    if (currentView() === 'cart' && cartSize()) loadBonus({ force: true, quiet: true });
   });
   // Force refresh (admins only): reload the current view's data from AH, bypassing the server's cache.
   // On the cart: the bargains (the Bonus has its own Force refresh on its view).

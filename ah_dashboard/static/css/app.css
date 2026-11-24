@@ -765,8 +765,14 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
 a.cartname:hover { color: var(--accent-ink); text-decoration: underline; }
 .cartmeta { font-size: 12px; color: var(--muted); }
 .cartgone { font-weight: 800; color: var(--red); }
+.cartstock { font-weight: 700; color: var(--ink); }
+.cartstock.low { color: var(--today-ink); background: var(--today-bg); padding: 0 4px; border-radius: var(--radius-tag); }
 .cartrow.gone .cartgone { color: var(--ink); }
+.cartdisc { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 4px 10px; }
 .cartdisc .badge.disc { display: inline-block; font-size: 14px; white-space: nowrap; }
+/* A bargain also on Bonus this week: "BONUS · deal" next to its discount (like the bargain cards). */
+.cartbonus { max-width: 220px; font-size: 12px; }
+.cartbonus .bonustag { font-size: 10px; }
 .cartdisc .badge.mech { white-space: normal; max-width: 160px; font-size: 12px; }
 .cartprices { display: flex; flex-direction: column; align-items: flex-end; }
 .cartprices .now { font-family: var(--font-display); font-size: 17px; font-weight: 800; color: var(--hot); white-space: nowrap; }
@@ -776,7 +782,7 @@ a.cartname:hover { color: var(--accent-ink); text-decoration: underline; }
 @media (max-width: 700px) {
   .cartrow { grid-template-columns: 40px minmax(0, 1fr) auto auto; gap: 4px 10px; padding: 8px 10px; }
   .cartthumb { width: 40px; height: 40px; }
-  .cartdisc { grid-column: 2; grid-row: 2; }
+  .cartdisc { grid-column: 2; grid-row: 2; justify-content: flex-start; }
   .cartprices { grid-column: 3; grid-row: 1 / span 2; }
   .cartdel { grid-column: 4; grid-row: 1 / span 2; }
   .cartthumb { grid-row: 1 / span 2; }
