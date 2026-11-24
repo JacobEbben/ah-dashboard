@@ -2,8 +2,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { activeInStore, filterOffers, groupKeyFn, IN_STORE_MS, inStoreUntil, isSpecial, knownCats, mergeAcrossStores, sortGroupKeys, sorter, specialSummary }
+import { filterOffers, groupKeyFn, isSpecial, knownCats, mergeAcrossStores, sortGroupKeys, sorter, specialSummary }
   from '../../ah_dashboard/static/js/bargains/model.js';
+import { activeInStore, IN_STORE_MS, inStoreUntil } from '../../ah_dashboard/static/js/lists/stores.js';
 import { categoryGroups, groupMemberRows, groupsToPresets, indexDeals, likedOffers, needsFetch, parseCats, parseLikedPill,
   selectCats, sortOffers } from '../../ah_dashboard/static/js/bonus/model.js';
 import { mergePrefs } from '../../ah_dashboard/static/js/sync/merge.js';

@@ -18,14 +18,22 @@ export const EV = Object.freeze({
   cols: 'cols',
   /** The saved store list changed. detail: {reload: boolean} (true: a store was added). */
   stores: 'stores',
+  /** "I'm in this store" was entered, left or ended (lists/stores.js): the store bar, the bargains and the cart follow. */
+  inStore: 'inStore',
   /** The bargains view must apply its filters again (a setting or the overview selection changed). */
   refilter: 'refilter',
   /** The bargain filter settings were applied or saved (presets mark the active one). */
   settings: 'settings',
   /** Something needs this week's Bonus (the bargains' "Bonus" filter): load it quietly. */
   needBonus: 'needBonus',
-  /** The Bonus loaded or failed. detail: {status: 'loading'|'ready'|'failed', deals: Map<number, string>}. */
+  /** The Bonus loaded or failed. detail: {status: 'loading'|'ready'|'failed', deals: Map<number, string>}, and when
+   *  ready also {items: Offer[], complete: boolean} (this week's offers; complete: no category failed). */
   bonusStatus: 'bonusStatus',
+  /** Bargains were loaded or the store list changed. detail: {items: Offer[], storeIds: number[]} (the stores whose
+   *  bargains are known: loaded without an error). The cart greys out what is gone. */
+  bargains: 'bargains',
+  /** The cart changed (lists/cart.js): the cart view and the cards' cart buttons re-render. */
+  cart: 'cart',
 });
 
 /** @typedef {(detail?: any) => void} Handler */

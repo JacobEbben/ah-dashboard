@@ -10,7 +10,7 @@ import { isHidden } from '../lists/blacklist.js';
 import { isLiked } from '../lists/likes.js';
 import { cardActions, gridCols, linkedThumb, metaLine, placeSections, section, wireCard } from '../ui/cards.js';
 import { catKey, groupKeyFn, isLeavingAssortment, isSpecial, mergeAcrossStores, sortGroupKeys, sorter } from './model.js';
-import { storeByName, storeClass, storeIndex } from './stores.js';
+import { storeByName, storeClass, storeIndex } from '../lists/stores.js';
 
 /** @typedef {import('../core/offers.js').Offer} Offer */
 /** @typedef {import('./model.js').Card} Card */

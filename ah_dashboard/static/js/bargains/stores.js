@@ -1,177 +1,27 @@
 // @ts-check
-// "My stores": the saved store list (with a colour per store), the store chips
-// and "I'm in this store", the Stores panel, and searching AH stores by postal
-// code. This module owns the list; changes are announced with EV.stores
-// ({reload: true} when a store was added), and the bargains controller reloads
-// or re-renders. Entering or leaving "I'm in this store" emits EV.refilter.
+// The Stores panel: the saved stores (rename, remove, "I'm here"), and
+// searching AH stores by postal code to add one. The list itself and "I'm in
+// this store" live in lists/stores.js (the cart uses the list too), the store
+// bar in ui/storebar.js; this module wires the bar's ＋ part to this panel.
 import { api, errorText } from '../core/api.js';
-import { config } from '../core/config.js';
 import { $, html, makeFoldable } from '../core/dom.js';
-import { emit, on, EV } from '../core/events.js';
+import { on, EV } from '../core/events.js';
 import { t } from '../core/i18n.js';
 import { KEYS, storage } from '../core/storage.js';
-import { activeInStore, inStoreUntil } from './model.js';
-
-/** @typedef {{id: number, name: string, color: string}} MyStore */
-
-// Distinct colours that don't clash with the red discount badge.
-const PALETTE = ['#2f6fb5', '#d27a1f', '#7a4bb0', '#2f8a5a', '#b5179e',
-                 '#00838f', '#8d6e2f', '#3f51b5', '#e0567a', '#546e7a'];
-const MAX_NAME = 30;
+import { addStore, colorClass, inStoreId, initStoreList, MAX_NAME, myStores, removeStore, renameStore,
+  toggleInStore } from '../lists/stores.js';
+import { initStoreBar } from '../ui/storebar.js';
+import { currentView, setView } from '../ui/view.js';
 
 /** @type {(folded: boolean) => void} */
 let setStoresFolded = () => {};
-/** @type {MyStore[]} */
-let stores = [];
 /** @type {any[]} latest store-search results */
 let lastResults = [];
-
-/** The saved stores, in the visitor's order. */
-export function myStores() { return stores; }
-
-// ---- store list ---------------------------------------------------------
-/** @param {MyStore[]} list */
-function pickColor(list) {
-  const used = new Set(list.map(s => s.color));
-  return PALETTE.find(c => !used.has(c)) || PALETTE[list.length % PALETTE.length];
-}
-
-/** @returns {MyStore[]} */
-function loadStores() {
-  const saved = storage.getJSON(KEYS.stores);
-  // No built-in stores: a new visitor starts with an empty list (the bargains
-  // view then opens the store search).
-  const list = Array.isArray(saved) ? saved : [];
-  /** @type {MyStore[]} */
-  const out = [];
-  for (const s of list) {
-    // A synced list may come from another device or an older version: skip
-    // odd and duplicate ids, and keep at most maxStores (the server refuses
-    // a longer list, which would leave the bargains view with only an error).
-    if (out.length >= config.maxStores) break;
-    if (!s || !/^[0-9]{1,10}$/.test(String(s.id)) || out.some(o => o.id === Number(s.id))) continue;
-    out.push({ id: Number(s.id), name: String(s.name || s.id).slice(0, MAX_NAME),
-      color: PALETTE.includes(s.color) ? s.color : pickColor(out) });
-  }
-  return out;
-}
-
-function saveStores() { storage.setJSON(KEYS.stores, stores); }
-
-/** @param {string} n */
-export function storeByName(n) { return stores.find(s => s.name === n); }
-/** Position in the visitor's list (unknown names last). @param {string} n */
-export function storeIndex(n) {
-  const i = stores.findIndex(s => s.name === n);
-  return i < 0 ? 99 : i;
-}
-/** @param {string} n */
-function storeColor(n) { const s = storeByName(n); return s ? s.color : null; }
-/** CSS class for a palette colour: sc0..sc9 (defined in app.css), scx for
- *  anything else. Classes instead of style attributes keep the CSP strict. */
-/** @param {string|null} color */
-export function colorClass(color) {
-  const i = color ? PALETTE.indexOf(color) : -1;
-  return i >= 0 ? `sc${i}` : 'scx';
-}
-/** Colour class for a store by name (badges, tags, group headings). */
-/** @param {string} n */
-export function storeClass(n) { return colorClass(storeColor(n)); }
-/** Stores to request bargains for. */
-export function storeRefs() { return stores.map(s => ({ id: s.id, name: s.name })); }
-
-// Store names label the cards, so keep them unique.
-/** @param {unknown} base @param {number} id */
-function uniqueName(base, id) {
-  const name = String(base || id).trim().slice(0, MAX_NAME) || String(id);
-  /** @param {string} n */
-  const taken = n => stores.some(s => s.name === n && s.id !== id);
-  return taken(name) ? `${name} (${id})` : name;
-}
-
-/** @param {boolean} reload */
-function changed(reload) {
-  saveStores();
-  renderMyStores();
-  renderStoreRow();
-  emit(EV.stores, { reload });
-}
-
-/** @param {number} id @param {string} newName */
-function renameStore(id, newName) {
-  const s = stores.find(x => x.id === id);
-  if (!s) return;
-  s.name = uniqueName(newName, id);
-  changed(false);       // loaded bargains are relabelled, not fetched again
-}
-
-/** @param {number} id */
-function removeStore(id) {
-  stores = stores.filter(s => s.id !== id);
-  changed(false);
-}
-
-/** @param {any} st a store-search result */
-function addStore(st) {
-  const id = Number(st.id);
-  if (!id || stores.some(s => s.id === id)) return;
-  if (stores.length >= config.maxStores) return;
-  let label = st.street || st.name || String(id);
-  if (stores.some(s => s.name === label) && st.houseNumber) label = `${label} ${st.houseNumber}`;
-  stores.push({ id, name: uniqueName(label, id), color: pickColor(stores) });
-  changed(true);
-}
-
-// ---- "I'm in this store" -----------------------------------------------------------
-// Per browser (ah_instore, not synced: where this phone is). It survives a
-// reload while shopping, but ends after 2 hours or at midnight, so the next
-// visit at home shows every store again (model.inStoreUntil / activeInStore).
-
-/** The store the visitor is in now, or null. */
-export function inStoreId() {
-  return activeInStore(storage.getJSON(KEYS.inStore), Date.now(), stores.map(s => s.id));
-}
-
-/** @param {number|null} id */
-function setInStore(id) {
-  if (id === null) storage.remove(KEYS.inStore);
-  else storage.setJSON(KEYS.inStore, { id, until: inStoreUntil(new Date()) });
-  renderStoreRow();
-  renderMyStores();
-  emit(EV.refilter, { clearFocus: true });
-}
-
-/** @param {number} id */
-const toggleInStore = id => setInStore(inStoreId() === id ? null : id);
-
-/** The store bar: one part per store; the store the visitor is in is highlighted, with a ✕. */
-function renderStoreRow() {
-  const here = inStoreId();
-  const box = $('storeChips');
-  box.innerHTML = '';
-  for (const s of stores) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    const on = s.id === here;
-    b.className = 'segbtn storechip' + (on ? ' active' : '');
-    b.setAttribute('aria-pressed', String(on));
-    b.title = on ? t('inStoreBackTitle') : t('imHereTitle', s.name);
-    b.innerHTML = on
-      ? html`<span class="dot ${colorClass(s.color)}"></span><span class="storechipname">${s.name}</span><span class="storechipx" aria-hidden="true">✕</span>`
-      : html`<span class="dot ${colorClass(s.color)}"></span><span class="storechipname">${s.name}</span>`;
-    b.addEventListener('click', () => {
-      toggleInStore(s.id);
-      // The bar was rebuilt: keep the keyboard focus on this store.
-      const again = box.querySelectorAll('.storechip')[stores.indexOf(s)];
-      if (again) /** @type {HTMLElement} */ (again).focus({ preventScroll: true });
-    });
-    box.appendChild(b);
-  }
-}
 
 // ---- rendering ------------------------------------------------------------
 function renderMyStores() {
   const here = inStoreId();
+  const stores = myStores();
   $('storeCount').textContent = stores.length
     ? '· ' + stores.map(s => s.name).join(', ')
     : t('storeCountNone');
@@ -207,7 +57,7 @@ function renderStoreResults() {
       [st.street, st.houseNumber, st.houseNumberExtra].filter(Boolean).join(' '),
       [st.postalCode, st.city].filter(Boolean).join(' '),
     ].filter(Boolean).join(', ');
-    const have = stores.some(s => s.id === Number(st.id));
+    const have = myStores().some(s => s.id === Number(st.id));
     const row = document.createElement('div');
     row.className = 'storeres';
     const meta = st.storeType ? `#${st.id} · ${st.storeType}` : `#${st.id}`;
@@ -251,33 +101,31 @@ function clearSearch() {
 /** Open the Stores panel (e.g. when the user has no stores yet). */
 export function openStoresPanel() { setStoresFolded(false); }
 
+/** Go to the Stores panel's postal-code search (the store bars' ＋; from the cart, switch to this view first). */
+export function openStoreSearch() {
+  if (currentView() !== 'bargains') setView('bargains');
+  openStoresPanel();
+  $('storeQuery').focus({ preventScroll: true });
+  $('storePanel').scrollIntoView({ block: 'nearest' });
+}
+
 export function initStores() {
-  stores = loadStores();
+  initStoreList();
+  initStoreBar();
   setStoresFolded = makeFoldable($('storePanel'), $('storeToggle'),
     folded => storage.set(KEYS.storesFolded, folded ? '1' : '0'));
   // ＋ at the end of the store bar: open the Stores panel at the postal-code search.
-  $('storeManageBtn').addEventListener('click', () => {
-    openStoresPanel();
-    $('storeQuery').focus({ preventScroll: true });
-    $('storePanel').scrollIntoView({ block: 'nearest' });
-  });
-  // Back to the tab after a while: "I'm in this store" may have ended.
-  let lastHere = inStoreId();
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) return;
-    const here = inStoreId();
-    if (here !== lastHere) { lastHere = here; renderStoreRow(); renderMyStores(); emit(EV.refilter); }
-  });
-  on(EV.refilter, () => { lastHere = inStoreId(); });
+  $('storeManageBtn').addEventListener('click', openStoreSearch);
 
   $('storeSearchBtn').addEventListener('click', searchStores);
   $('storeClearBtn').addEventListener('click', clearSearch);
   $('storeQuery').addEventListener('input', updateClearButton);
   $('storeQuery').addEventListener('keydown', (/** @type {KeyboardEvent} */ e) => { if (e.key === 'Enter') searchStores(); });
-  on(EV.lang, () => { renderMyStores(); renderStoreRow(); });
+  on(EV.lang, renderMyStores);
+  on(EV.stores, renderMyStores);
+  on(EV.inStore, renderMyStores);
 
   renderMyStores();
-  renderStoreRow();
   // Open when there are no stores yet (first visit), else as the user left it.
-  setStoresFolded(stores.length > 0 && storage.get(KEYS.storesFolded) !== '0');
+  setStoresFolded(myStores().length > 0 && storage.get(KEYS.storesFolded) !== '0');
 }

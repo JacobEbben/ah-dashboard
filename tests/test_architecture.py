@@ -240,6 +240,7 @@ JS_ALLOWED = {
     "sync": {"core"},
     "bargains": {"core", "lists", "ui"},
     "bonus": {"core", "lists", "ui"},
+    "cart": {"core", "lists", "ui"},
 }
 
 

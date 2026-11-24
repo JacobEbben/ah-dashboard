@@ -1,10 +1,11 @@
 // @ts-check
-// Switch between the two views: "bargains" (last-chance bargains per store)
-// and "bonus" (this week's national Bonus). Remembered per browser.
+// Switch between the three views: "bargains" (last-chance bargains per store),
+// "bonus" (this week's national Bonus) and "cart" (what the visitor picked).
+// Remembered (and synced).
 import { $ } from '../core/dom.js';
 import { storage, KEYS } from '../core/storage.js';
 
-const VIEWS = ['bargains', 'bonus'];
+const VIEWS = ['bargains', 'bonus', 'cart'];
 let current = 'bargains';
 /** @type {Record<string, () => void>} */
 let onShow = {};
@@ -16,6 +17,7 @@ export function setView(view) {
   current = VIEWS.includes(view) ? view : 'bargains';
   $('bargainsView').hidden = current !== 'bargains';
   $('bonusView').hidden = current !== 'bonus';
+  $('cartView').hidden = current !== 'cart';
   document.documentElement.dataset.view = current;
   // One "Liked & hidden products" panel, shown in the current view's panel row.
   const row = $(current === 'bonus' ? 'bonusPanelRow' : 'bargainsPanelRow');

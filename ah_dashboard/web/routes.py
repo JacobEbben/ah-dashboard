@@ -10,6 +10,7 @@ from flask.typing import ResponseReturnValue
 from ..auth import access, admin, csrf
 from ..auth.users import SYNC_KEYS
 from ..container import services
+from ..headers import image_host_list
 from . import bp
 
 log = logging.getLogger(__name__)
@@ -27,6 +28,8 @@ def index():
         # Signed in: the page syncs settings with /api/prefs (needs the CSRF token).
         "user": user,
         "csrf": csrf.csrf_token() if user else None,
+        # Hosts product images may come from (the CSP's img-src): the cart drops others.
+        "imageHosts": image_host_list(s.settings.app.csp_image_hosts),
     }
     # "Admin" button: a signed-in admin user, or an admin-password session.
     admin_link = admin.enabled() and admin.logged_in()

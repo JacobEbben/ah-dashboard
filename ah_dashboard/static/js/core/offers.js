@@ -88,6 +88,31 @@ export function productUrl(id) {
 }
 
 /**
+ * An image URL on one of the allowed hosts (the server's CSP_IMAGE_HOSTS, as
+ * the CSP's img-src lists them): "https://static.ah.nl" allows that origin,
+ * "https://*.ah.nl" its subdomains. Anything else gives null.
+ * @param {unknown} value
+ * @param {string[]} hosts
+ */
+export function allowedImageUrl(value, hosts) {
+  const url = safeImageUrl(value);
+  if (!url) return null;
+  const u = new URL(url);
+  for (const host of Array.isArray(hosts) ? hosts : []) {
+    let h;
+    try { h = new URL(String(host).replace('://*.', '://wildcard.')); } catch (e) { continue; }
+    if (h.protocol !== 'https:' || h.port !== u.port) continue;
+    if (String(host).includes('://*.')) {
+      const base = h.hostname.slice('wildcard.'.length);
+      if (u.hostname.endsWith('.' + base)) return url;
+    } else if (h.hostname === u.hostname) {
+      return url;
+    }
+  }
+  return null;
+}
+
+/**
  * Product images: only absolute https URLs (AH's CDN) are used.
  * @param {unknown} value
  */

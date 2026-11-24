@@ -64,7 +64,7 @@
     <h2>Zonder account</h2>
     <ul>
       <li><b>In je browser.</b> Je gekozen winkels, filters, voorinstellingen, leuk gevonden en verborgen producten,
-        taal, thema en weergave worden opgeslagen in je eigen browser (localStorage). Gebruik je "ik ben in deze
+        je mandje (de producten die je erin legde, met hun prijs en korting van dat moment), taal, thema en weergave worden opgeslagen in je eigen browser (localStorage). Gebruik je "ik ben in deze
         winkel", dan staat daar ook welke winkel dat is, hooguit 2 uur en nooit na middernacht (niet
         gesynchroniseerd). Die gegevens blijven op je apparaat; je wist ze via de instellingen van je browser (sitegegevens wissen).</li>
       <li><b>Wat naar deze server gaat.</b> Om koopjes te tonen stuurt je browser de nummers van je gekozen winkels
@@ -103,7 +103,7 @@
       <li>je gebruikersnaam en het gebruikersnummer van de inlogdienst (bij een account uit de tijd van inloggen met
         Google ook het e-mailadres en Google-nummer van toen), wanneer het account is aangemaakt en wanneer je voor het laatst inlogde, en of je beheerder of geblokkeerd bent;</li>
       <li>je gesynchroniseerde instellingen: winkels, filters, voorinstellingen, leuk gevonden en verborgen producten,
-        taal, thema, weergave en de Bonus-instellingen;</li>
+        je mandje, taal, thema, weergave en de Bonus-instellingen;</li>
       <li>je actieve inlogsessies: een willekeurig nummer en het tijdstip van inloggen. Een sessie vervalt na
         {{ user_session_days }} dagen of als je uitlogt.</li>
     </ul>
@@ -131,8 +131,8 @@
 
     <h2>Without an account</h2>
     <ul>
-      <li><b>In your browser.</b> Your chosen stores, filters, presets, liked and hidden products, language, theme and
-        view are saved in your own browser (localStorage). When you use "I'm in this store", it also holds which
+      <li><b>In your browser.</b> Your chosen stores, filters, presets, liked and hidden products, your cart (the products
+        you put in it, with their price and discount at that moment), language, theme and view are saved in your own browser (localStorage). When you use "I'm in this store", it also holds which
         store that is, for at most 2 hours and never past midnight (not synced). They stay on your device; you clear them in your browser's
         settings (clear site data).</li>
       <li><b>What reaches this server.</b> To show bargains your browser sends the numbers of your chosen stores to this
@@ -169,8 +169,8 @@
     <ul>
       <li>your username and the login service's user number (for an account from the Google sign-in days also the
         e-mail address and Google number of then), when the account was created and when you last signed in, and whether you are an administrator or disabled;</li>
-      <li>your synced settings: stores, filters, presets, liked and hidden products, language, theme, view and the
-        Bonus settings;</li>
+      <li>your synced settings: stores, filters, presets, liked and hidden products, your cart, language, theme, view and
+        the Bonus settings;</li>
       <li>your active sign-ins: a random number and when you signed in. A sign-in expires after
         {{ user_session_days }} days or when you sign out.</li>
     </ul>

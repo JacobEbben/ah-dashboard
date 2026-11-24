@@ -6,7 +6,7 @@ import { compareUnit, unitPrice } from '../core/unit.js';
 import { productKey } from '../core/offers.js';
 
 /** @typedef {import('../core/offers.js').Offer} Offer */
-/** @typedef {{name: string, stock: number|null|undefined}} StoreStock */
+/** @typedef {{id: number|null|undefined, name: string, stock: number|null|undefined}} StoreStock */
 /** @typedef {Offer & {stores: StoreStock[]}} Card one card: an offer, possibly at several stores */
 
 /**
@@ -59,31 +59,6 @@ export function filterOffers(items, f, { isHidden }) {
   return { items: out, hiddenCount, otherStores };
 }
 
-/** "I'm in this store" lasts 2 hours, and never past midnight. */
-export const IN_STORE_MS = 2 * 60 * 60 * 1000;
-
-/** When "I'm in this store", started at ``now``, ends (ms). @param {Date} now */
-export function inStoreUntil(now) {
-  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
-  return Math.min(now.getTime() + IN_STORE_MS, midnight);
-}
-
-/**
- * The remembered "I'm in this store" if it still applies: a followed store
- * and not expired; else null.
- * @param {unknown} saved what was stored ({id, until})
- * @param {number} now ms
- * @param {number[]} storeIds the followed stores
- * @returns {number|null}
- */
-export function activeInStore(saved, now, storeIds) {
-  if (!saved || typeof saved !== 'object') return null;
-  const { id, until } = /** @type {any} */ (saved);
-  if (!Number.isInteger(id) || !storeIds.includes(id)) return null;
-  if (typeof until !== 'number' || !(until > now) || until - now > IN_STORE_MS) return null;
-  return id;
-}
-
 /**
  * Merge the same product at the same discount across stores into one card
  * (not when grouping by store: then every store keeps its own card). Stores
@@ -100,7 +75,7 @@ export function mergeAcrossStores(items, groupBy, storeIndex) {
   for (const o of items) {
     const pid = o.id ?? o.title ?? `#${unkeyed++}`;
     const key = pid + '|' + o.discount + (groupBy === 'store' ? '|' + (o.storeName || '?') : '');
-    const entry = { name: o.storeName || '?', stock: o.stock };
+    const entry = { id: o.storeId, name: o.storeName || '?', stock: o.stock };
     const found = merged.get(key);
     if (found) found.stores.push(entry);
     else merged.set(key, { ...o, stores: [entry] });

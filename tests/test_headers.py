@@ -1,5 +1,6 @@
 """Security headers: strict CSP, no software banner, extra hardening headers."""
 
+import json
 import re
 from pathlib import Path
 
@@ -52,6 +53,17 @@ def test_permissions_policy_has_no_deprecated_features(client):
 def test_csp_image_hosts_must_be_https():
     csp = build_csp("https://img.example http://evil.example javascript:x")
     assert "https://img.example" in csp and "http://evil" not in csp and "javascript:" not in csp
+
+
+def test_page_gets_the_csp_image_hosts(app):
+    from conftest import configure
+    configure(app, CSP_IMAGE_HOSTS="https://static.ah.nl http://evil.example https://*.img.example")
+    resp = app.test_client().get("/")
+    m = re.search(r'id="app-config">(.*?)</script>', resp.get_data(as_text=True), re.S)
+    assert json.loads(m.group(1))["imageHosts"] == ["https://static.ah.nl", "https://*.img.example"]
+    # The CSP is built from the same list.
+    assert "img-src 'self' data: https://static.ah.nl https://*.img.example;" in build_csp(
+        "https://static.ah.nl http://evil.example https://*.img.example")
 
 
 def test_no_software_banner_and_hardening_headers(client):

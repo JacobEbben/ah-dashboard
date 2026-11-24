@@ -1,7 +1,8 @@
 # AH Dashboard
 
 Albert Heijn offers on one page: the **Bargains** ("Laatste Kans Koopjes") of chosen stores, and this week's
-(and next week's) **Bonus**. The server uses one operator-configured AH login; visitors need no account.
+(and next week's) **Bonus**, plus a personal **Cart** of picked bargains and Bonus deals (kept in the browser,
+greyed out once gone from AH). The server uses one operator-configured AH login; visitors need no account.
 Optional sign-in (OpenID Connect) syncs settings. Includes `/admin`, `/privacy`, `/voorwaarden` and a read-only `/mcp`.
 
 ## Run

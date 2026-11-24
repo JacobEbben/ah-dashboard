@@ -6,7 +6,10 @@
 // app-config as syncKeys: the only list) are uploaded a moment after they change. On page load the server copy is
 // fetched: if it is newer than what this browser last synced (another device
 // changed something), it replaces the local values and the page reloads once
-// to show them. The first sign-in on a device whose account has nothing saved
+// to show them. The same check runs again when the tab comes back into view
+// (at most every PULL_INTERVAL, and not while a change waits to be uploaded),
+// so a tab left open on a phone picks up e.g. a cart filled on a laptop.
+// The first sign-in on a device whose account has nothing saved
 // yet uploads this device's settings.
 //
 // When BOTH this browser (unsent changes) and another device changed things
@@ -20,6 +23,7 @@ import { mergePrefs } from './merge.js';
 const SYNC_KEYS = config.syncKeys;
 const META_KEY = 'ah_sync';           // {user, at, dirty}: this browser's sync state (not synced)
 const PUSH_DELAY = 1500;
+const PULL_INTERVAL = 30 * 1000;     // when the tab is shown again: ask the server at most this often
 // Browsers refuse "keepalive" requests (the upload while a page closes) with
 // bodies over 64 KiB; larger settings are sent as a normal request instead.
 const KEEPALIVE_MAX = 60 * 1024;
@@ -27,6 +31,8 @@ const KEEPALIVE_MAX = 60 * 1024;
 /** @type {any} */
 let timer = 0;
 let applying = false;
+let lastPull = 0;
+let pulling = false;
 
 /** @returns {{user?: string|null, at?: number, dirty?: boolean}} */
 function readMeta() {
@@ -105,11 +111,24 @@ export async function initSync() {
   onStorageChange(key => { if (!applying && SYNC_KEYS.includes(key)) schedulePush(); });
   // Upload pending changes when the page is hidden (switching apps on a phone,
   // closing the tab): earlier than "pagehide", while a request can still finish.
+  // Back to the tab: another device may have changed settings (e.g. the cart) meanwhile.
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden' && timer) push(true);
+    if (document.visibilityState === 'hidden') { if (timer) push(true); return; }
+    if (timer || pulling || Date.now() - lastPull < PULL_INTERVAL) return;
+    pulling = true;
+    pull().finally(() => { pulling = false; });
   });
   window.addEventListener('pagehide', () => { if (timer) push(true); });
+  return pull();
+}
 
+/**
+ * Compare with the server's copy and take it over (or merge) when another
+ * device changed something; reloads the page when that changed anything here.
+ * Returns false when the page is reloading.
+ */
+async function pull() {
+  lastPull = Date.now();
   let server;
   try { server = await call('GET'); } catch (e) { return true; }   // offline: keep local settings
   const meta = readMeta();

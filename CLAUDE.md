@@ -1,14 +1,15 @@
 # CLAUDE.md — AH Dashboard
 
-Flask app (Waitress, one process) with two views on Albert Heijn offers:
+Flask app (Waitress, one process) with three views on Albert Heijn offers:
 - **Bargains**: per-store "Laatste Kans Koopjes", from GraphQL `bargainItems`.
 - **Bonus**: this week's national Bonus, from REST `/mobile-services/bonuspage/...` plus GraphQL `bonusPromotions` for group deals.
+- **Cart**: browser-only (no server API): bargains and Bonus deals picked with a card's cart button, checked against the latest results of the other two views.
 
 The server calls AH with ONE operator-configured AH login; visitors need no account. Optional sign-in through the central login service (an OpenID Connect provider, e.g. the companion Login Service) only syncs settings. Also included: `/admin` panel, `/privacy` (export/delete), `/voorwaarden` (terms of use), `/mcp` (read-only MCP server). Python 3.12; deps Flask 3, waitress 3, cryptography (`requirements.txt`, pinned with hashes in `requirements.lock`).
 
 ## Commands (Docker only; no local venv/Node)
 
-Checks run in throwaway containers with the repo mounted read-only. `ci/check.sh` is what CI runs; all of these must stay green (515 pytest tests + ruff + mypy; 31 node tests at time of writing).
+Checks run in throwaway containers with the repo mounted read-only. `ci/check.sh` is what CI runs; all of these must stay green (520 pytest tests + ruff + mypy; 42 node tests at time of writing).
 
 ```bash
 docker compose up -d --build                                            # run on 127.0.0.1:8733, settings from .env
@@ -88,22 +89,22 @@ Plain ES modules with no build step. `main.js` is the composition root. Allowed 
 
 | folder | may import |
 |---|---|
-| `core/` (dom, storage, i18n, api, events, config, format, unit, offers, layout) | nothing of the app |
-| `lists/` (likes, blacklist, keyed, panel) | core |
-| `ui/` (cards, density, theme, view, reorder, rename, presets) | core, lists |
+| `core/` (dom, storage, i18n, api, events, config, format, unit, offers, layout, cart) | nothing of the app |
+| `lists/` (likes, blacklist, keyed, panel, stores, cart) | core |
+| `ui/` (cards, density, theme, view, reorder, rename, presets, storebar) | core, lists |
 | `sync/` (sync, merge) | core |
-| `bargains/`, `bonus/` | core, lists, ui; **never each other** |
+| `bargains/`, `bonus/`, `cart/` | core, lists, ui; **never each other** |
 
-- Cross-module reactions go through `core/events.js`: `on(EV.x, fn)` / `emit(EV.x, detail)`. The events are `EV.lists, lang, cols, stores {reload}, refilter, settings, needBonus, bonusStatus {status, deals}`. A new reaction needs a new `EV` key; never call another feature's render function directly.
-- Each view has one controller that re-renders: `bargains/index.js`, `bonus/index.js`. Other modules emit events.
-- DOM-free logic lives in `bargains/model.js`, `bonus/model.js`, `core/layout.js`, `core/unit.js`, `core/offers.js`, `core/format.js` and `sync/merge.js`. Each is tested in `tests/js/` (`node:test`, no DOM). Put new pure logic there and add a test.
-- Server config reaches the page as JSON in `<script type="application/json" id="app-config">` (`web/routes.index`): `maxStores, syncKeys, user, csrf`. `core/config.js` reads it.
+- Cross-module reactions go through `core/events.js`: `on(EV.x, fn)` / `emit(EV.x, detail)`. The events are `EV.lists, lang, cols, stores {reload}, inStore, refilter, settings, needBonus, bonusStatus {status, deals, items, complete}, bargains {items, storeIds}, cart`. A new reaction needs a new `EV` key; never call another feature's render function directly.
+- Each view has one controller that re-renders: `bargains/index.js`, `bonus/index.js`, `cart/index.js`. Other modules emit events.
+- DOM-free logic lives in `bargains/model.js`, `bonus/model.js`, `core/layout.js`, `core/unit.js`, `core/offers.js`, `core/format.js`, `core/cart.js` and `sync/merge.js` (`lists/stores.js` and `lists/cart.js` also run under node). Each is tested in `tests/js/` (`node:test`, no DOM). Put new pure logic there and add a test.
+- Server config reaches the page as JSON in `<script type="application/json" id="app-config">` (`web/routes.index`): `maxStores, syncKeys, user, csrf, imageHosts` (`headers.image_host_list(CSP_IMAGE_HOSTS)`, the same list as the CSP's img-src). `core/config.js` reads it.
 
 ## Invariants (do not change)
 
 - **Key-derivation labels** in `__init__.py`: `SESSION_KEY_LABEL = b"ah-bargains flask session v1"`, `TOKEN_STORE_LABEL = b"ah-bargains token store v1"`. They keep the old project name on purpose; changing them makes the stored AH login unreadable and signs everyone out.
 - **The seal secret**: `TOKEN_SEAL_SECRET`, or a generated `instance/token_seal.secret`. It must never be stored in the database, and changing it has the same effect as changing the labels.
-- **localStorage keys** in `static/js/core/storage.js` `KEYS` (`ah_settings`, `ah_instore`, `ah_presets`, `ah_preset_order`, `ah_stores`, `ah_lang`, `ah_view`, `ah_bonus_cat`, `ah_bonus_filters`, `ah_bonus_presets`, `ah_bonus_preset_order`, `ah_bonus_groups`, `ah_bonus_notice`, `ah_theme`, `ah_blacklist`, `ah_liked`, `ah_show_hidden`, `ah_cols`, `*_folded`), plus `ah_sync` in `sync/sync.js`. Renaming one wipes users' settings. `theme-init.js` also reads `ah_theme`.
+- **localStorage keys** in `static/js/core/storage.js` `KEYS` (`ah_settings`, `ah_instore`, `ah_presets`, `ah_preset_order`, `ah_stores`, `ah_lang`, `ah_view`, `ah_bonus_cat`, `ah_bonus_filters`, `ah_bonus_presets`, `ah_bonus_preset_order`, `ah_bonus_groups`, `ah_bonus_notice`, `ah_theme`, `ah_blacklist`, `ah_liked`, `ah_show_hidden`, `ah_cart`, `ah_cart_store`, `ah_cols`, `*_folded`), plus `ah_sync` in `sync/sync.js`. Renaming one wipes users' settings. `theme-init.js` also reads `ah_theme`.
 - **Cookie name**: `ahb_admin` / `__Host-ahb_admin` (when `ADMIN_COOKIE_SECURE`). Session keys: `sid`, `csrf`, `user`, `admin_login_at`, `admin_seen_at`, `admin_pw`, `login_pending`.
 - **One server process / one instance per AH login.** AH rotates the refresh token on every renewal, so a second process or deployment invalidates the other's token. The server's deploy command must stop the old container before starting the new one. Rate limits, lockouts and caches are in memory.
 - **No custom User-Agent towards AH GraphQL** (`AH_USER_AGENT` unset). A custom one made AH fail with "Subgraph errors redacted".
@@ -124,7 +125,7 @@ Plain ES modules with no build step. `main.js` is the composition root. Allowed 
   - no inline `<script>` bodies (except `type="application/json"`),
   - no CDNs.
   Setting `element.style.x` from JS is fine. Store colours are classes (`sc0`…`sc9`, `scx`). Fonts are self-hosted in `static/fonts/`.
-- **Escape all data in the browser**: build HTML with the `html` tagged template from `core/dom.js` (only `SafeHtml` passes unescaped), or use `textContent`. Image and link URLs go through `core/offers.safeImageUrl` (https only).
+- **Escape all data in the browser**: build HTML with the `html` tagged template from `core/dom.js` (only `SafeHtml` passes unescaped), or use `textContent`. Image and link URLs go through `core/offers.safeImageUrl` (https only). Cart entries (synced, so untrusted) keep an image only on an allowed host: `core/offers.allowedImageUrl(url, config.imageHosts)` (exact origin or a `https://*.` subdomain wildcard, default port only), in `core/cart.entriesFor`/`cleanEntry` and again when drawing.
 - **AH data reaches the browser only through `ah/mapping.py`**:
   - It whitelists fields; validators never raise.
   - NaN/Infinity, non-ASCII digits, booleans, wrong shapes and out-of-range numbers all become `None`.
@@ -242,6 +243,7 @@ Plain ES modules with no build step. `main.js` is the composition root. Allowed 
 - The `TTLCache` stale-reload uses `scheduler.spawn` (a no-op after `scheduler.stop()`). In tests `BARGAINS_STALE_SECONDS=0`, so there are no background reloads.
 - `KnownStores` is loaded from the `known_stores` table at start-up and capped at 20,000 ids.
 - Bargains page, top to bottom: the store bar (`_store_strip.html`; its last part ＋ opens the Stores panel), the minimum-discount buttons (`#minDisc`) and the presets bar (`_quickbar.html`; its last part ＋ opens Filters at the new preset name), then the panel row: Filters (`_filters_panel.html`, a `makeFoldable` panel: group, sort, product types, presets; `#filterCount`), Stores, Liked & hidden. Remove filters (`#clearFilters`) is always shown, disabled when nothing filters, and leaves stores alone. There is no product search, no "Bonus only" and no "liked only" filter (old `bonusOnly`/`likedOnly` settings are ignored): liking only puts a product first among equals (`model.sorter`). Bonus page, like the bargains: the week switch, the presets bar (`#bonusPresetBar`: "All types", saved category selections, ＋ opens its Filters at the new preset name) with the Liked pill, then the panel row: Filters (`_bonus_filters_panel.html`: category chips, presets), Liked & hidden. Every chosen category is shown at once, one section per category (AH's order), liked first (`bonus/model.sortOffers`); search covers every category. Presets for both views come from `ui/presets.js` (`makePresets`); the Bonus has its own (`ah_bonus_presets`, `ah_bonus_preset_order`); `ah_bonus_filters` keeps `{liked, cats}`. Category groups are gone: old `ah_bonus_groups` become presets once (`bonus/model.groupsToPresets`) and are removed with `ah_bonus_cat`. There are no dialogs/sheets.
-- "I'm in this store": tapping a store chip stores `ah_instore` `{id, until}` (per device, not synced; `model.inStoreUntil` = 2 h or midnight, `activeInStore` validates). The store bar (`#storeChips`, a segmented bar like `#minDisc` and `#presetBar`) stays and highlights that store with a ✕ (tap again to leave); `filterOffers` gets `storeId` and returns `otherStores` for the summary.
+- "I'm in this store": tapping a store chip stores `ah_instore` `{id, until}` (per device, not synced; `lists/stores.inStoreUntil` = 2 h or midnight, `activeInStore` validates) and emits `EV.inStore`. The store list and this state live in `lists/stores.js` (the cart uses the list); the Stores panel and search stay in `bargains/stores.js`. The store bar (`#storeChips`, `ui/storebar.js`, a segmented bar like `#minDisc` and `#presetBar`) stays and highlights that store with a ✕ (tap again to leave); `filterOffers` gets `storeId` and returns `otherStores` for the summary.
+- Cart: its store bar (`#cartStoreChips`) is drawn by the same `ui/storebar.renderStoreBar` as the bargains' bar, but its selection is the cart's OWN filter (`ah_cart_store`, per device, not synced, no expiry; `core/cart.activeCartStore` drops a store that is no longer followed), independent of "I'm in this store". Its ＋ (`#cartStoreManageBtn`, wired in `main.js`) calls `bargains/stores.openStoreSearch` (switches to the bargains view, opens the Stores panel). Entries (`core/cart.js`, stored by `lists/cart.js` in `ah_cart`, synced, merged like likes, max 300) are copies of the offer: a bargain per store (`b:<storeId>:<productKey>`; a card merged across stores adds one per store, `mergeAcrossStores` keeps each store's `id`), a Bonus deal once (`p:<productKey>`, with its week `from`/`until`). `entryStatus`: gone = past its date, or its store's bargains loaded without it (`EV.bargains` storeIds exclude failed stores), or a complete Bonus week (`EV.bonusStatus` `complete`) without it; unknown otherwise (never greyed); next week's deals are `upcoming`. Rows show the latest discount/price when still listed. The cart asks for this week's Bonus with `EV.needBonus` when it has Bonus deals.
 - Admin templates are server-rendered with no JS; admin POSTs redirect with `flash()` messages.
 - `/api/*` responses and every HTML page are `Cache-Control: no-store` (pages carry the CSRF token and account in `app-config`); admin pages also `X-Robots-Tag: noindex, nofollow`. Static files use Flask's defaults (no `SEND_FILE_MAX_AGE_DEFAULT` is set).

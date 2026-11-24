@@ -41,6 +41,7 @@ EMAIL_RE = re.compile(r"[^@\s]{1,64}@[^@\s]{1,255}")
 SYNC_KEYS = frozenset({
     "ah_settings", "ah_presets", "ah_preset_order", "ah_stores", "ah_lang", "ah_theme", "ah_view",
     "ah_bonus_filters", "ah_bonus_presets", "ah_bonus_preset_order", "ah_blacklist", "ah_liked", "ah_show_hidden",
+    "ah_cart",
 })
 MAX_PREF_VALUE = 400 * 1024       # one setting (the hidden/liked lists are the largest)
 MAX_PREFS_TOTAL = 900 * 1024      # all settings of one user

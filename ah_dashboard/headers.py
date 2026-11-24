@@ -12,10 +12,16 @@ from __future__ import annotations
 from flask import Flask, request
 
 
+def image_host_list(image_hosts: str) -> list[str]:
+    """The image hosts from CSP_IMAGE_HOSTS that are used: https ones only. The page gets the
+    same list (app-config ``imageHosts``), so the cart keeps only images the CSP allows."""
+    return [h for h in str(image_hosts or "").split() if h.startswith("https://")]
+
+
 def build_csp(image_hosts: str, form_targets: str = "") -> str:
     """``form_targets``: the login service's origin. Signing out is a POST that redirects
     there, and browsers apply form-action to that redirect."""
-    hosts = " ".join(h for h in str(image_hosts or "").split() if h.startswith("https://"))
+    hosts = " ".join(image_host_list(image_hosts))
     return "; ".join([
         "default-src 'none'",
         "script-src 'self'",

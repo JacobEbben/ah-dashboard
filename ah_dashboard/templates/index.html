@@ -77,6 +77,32 @@
     <div id="bonusSummary" class="summary"></div>
     <div id="bonusResults"></div>
   </div>
+
+  {# View 3: the cart. One row per picked bargain or Bonus deal; gone ones greyed out. Its store bar looks and
+     works like the bargains view's, but its selection is the cart's own (only that store's items; not
+     "I'm in this store"). ＋ opens the Stores panel on the bargains view (static/js/cart/index.js, main.js). #}
+  <div id="cartView" hidden>
+    <div class="quickrows">
+      <div class="storestrip">
+        <div class="chiprow storerow">
+          <div class="segmented storeseg">
+            <div id="cartStoreChips" class="segparts" role="group" data-i18n-aria="stores"></div>
+            <button type="button" id="cartStoreManageBtn" class="segbtn segadd" data-i18n-aria="manageStores" data-i18n-title="manageStores">＋</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="summaryrow">
+      <div id="cartSummary" class="summary" role="status" aria-live="polite"></div>
+      <button type="button" id="cartClearGone" class="linkbtn" data-i18n-title="cartClearGoneTitle" disabled>
+        <span data-i18n="cartClearGone"></span>
+      </button>
+      <button type="button" id="cartClear" class="linkbtn" disabled>
+        <span aria-hidden="true">✕</span> <span data-i18n="cartClear"></span>
+      </button>
+    </div>
+    <div id="cartList" class="cartlist"></div>
+  </div>
 </div>
 {% endblock %}
 

@@ -1,5 +1,5 @@
 // @ts-check
-// Parts shared by the product cards of both views: the like / hide buttons,
+// Parts shared by the product cards of both views: the cart / like / hide buttons,
 // the unit-price line, the link to ah.nl and the broken-image fallback.
 import { html } from '../core/dom.js';
 import { euro } from '../core/format.js';
@@ -8,9 +8,13 @@ import { packSections } from '../core/layout.js';
 import { groupSize, productUrl } from '../core/offers.js';
 import { unitPrice } from '../core/unit.js';
 import { hideItem, isHidden, unhideItem } from '../lists/blacklist.js';
+import { inCart, toggleCart } from '../lists/cart.js';
 import { isLiked, toggleLike } from '../lists/likes.js';
 
 /** @typedef {import('../core/offers.js').Offer} Offer */
+
+// Shopping-cart icon (static markup).
+const CART_ICON = html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.6 12.2a2 2 0 0 0 2 1.6h8.2a2 2 0 0 0 2-1.5L21.5 8H6"/></svg>`;
 
 // Thumbs-up icon (static markup).
 const THUMB_ICON = html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10v11"/><path d="M15 5.9 14 10h5.8a2 2 0 0 1 1.9 2.6l-2.3 7A2 2 0 0 1 17.5 21H7a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h2.8a2 2 0 0 0 1.8-1.1L15 2a3.1 3.1 0 0 1 0 3.9Z"/></svg>`;
@@ -53,17 +57,19 @@ export function linkedThumb(offer, thumb) {
 }
 
 /**
- * Like + hide buttons for a card's title row.
+ * Cart + like + hide buttons for a card's title row.
  * @param {Offer} offer
  * @param {string} title
  */
 export function cardActions(offer, title) {
-  const hidden = isHidden(offer), liked = isLiked(offer);
+  const hidden = isHidden(offer), liked = isLiked(offer), carted = inCart(offer);
+  const cartLabel = carted ? t('cartRemove') : t('cartAdd');
   // A group deal acts on each of its products: say so.
   const n = groupSize(offer);
   const toggleLabel = n ? (hidden ? t('unhideGroup', n) : t('hideGroup', n)) : (hidden ? t('unhideProduct') : t('hideProduct'));
   const likeLabel = n ? (liked ? t('unlikeGroup', n) : t('likeGroup', n)) : (liked ? t('unlikeProduct') : t('likeProduct'));
-  return html`<button type="button" class="likebtn${liked ? ' on' : ''}" title="${likeLabel}" aria-label="${likeLabel}: ${title}" aria-pressed="${liked ? 'true' : 'false'}">${THUMB_ICON}</button>
+  return html`<button type="button" class="cartbtn${carted ? ' on' : ''}" title="${cartLabel}" aria-label="${cartLabel}: ${title}" aria-pressed="${carted ? 'true' : 'false'}">${CART_ICON}</button>
+      <button type="button" class="likebtn${liked ? ' on' : ''}" title="${likeLabel}" aria-label="${likeLabel}: ${title}" aria-pressed="${liked ? 'true' : 'false'}">${THUMB_ICON}</button>
       <button type="button" class="hidebtn" title="${toggleLabel}" aria-label="${toggleLabel}: ${title}">${hidden ? '↺' : '✕'}</button>`;
 }
 
@@ -73,9 +79,11 @@ export function cardActions(offer, title) {
  * CSP blocks it).
  * @param {HTMLElement} el
  * @param {Offer} offer
+ * @param {{start: string|null, end: string|null}|null} [week] the Bonus week the card shows (kept in the cart)
  */
-export function wireCard(el, offer) {
+export function wireCard(el, offer, week = null) {
   const hidden = isHidden(offer);
+  el.querySelector('.cartbtn')?.addEventListener('click', () => toggleCart(offer, week));
   el.querySelector('.likebtn')?.addEventListener('click', () => toggleLike(offer));
   el.querySelector('.hidebtn')?.addEventListener('click', () => {
     if (hidden) unhideItem(offer); else hideItem(offer);

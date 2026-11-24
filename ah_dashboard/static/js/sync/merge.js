@@ -1,7 +1,7 @@
 // @ts-check
 // Merging this browser's settings with the server's copy, when BOTH changed
-// since the last sync (see sync.js): liked and hidden products and presets
-// are combined; for every other setting this browser's value wins.
+// since the last sync (see sync.js): liked and hidden products, the cart and
+// presets are combined; for every other setting this browser's value wins.
 // Pure functions (no storage, no DOM), so they can be tested on their own.
 
 /** @typedef {Record<string, string>} Prefs localStorage key -> text value */
@@ -15,7 +15,7 @@ function parse(text, fallback) {
 }
 
 /**
- * [{key, title}] lists (liked / hidden): everything from both, by key.
+ * [{key, title, …}] lists (liked / hidden / the cart): everything from both, by key.
  * @param {string|null} localText
  * @param {string|null} serverText
  */
@@ -41,7 +41,7 @@ export function mergePresets(localText, serverText) {
 }
 
 /** @type {Record<string, (local: string|null, server: string|null) => string|null>} */
-const MERGERS = { ah_liked: mergeKeyed, ah_blacklist: mergeKeyed, ah_presets: mergePresets };
+const MERGERS = { ah_liked: mergeKeyed, ah_blacklist: mergeKeyed, ah_cart: mergeKeyed, ah_presets: mergePresets };
 
 /**
  * This browser's settings combined with the server's.

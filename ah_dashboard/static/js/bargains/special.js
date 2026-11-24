@@ -9,7 +9,7 @@ import { t } from '../core/i18n.js';
 import { isHidden } from '../lists/blacklist.js';
 import { focusOn } from './metrics.js';
 import { specialSummary } from './model.js';
-import { storeIndex } from './stores.js';
+import { storeIndex } from '../lists/stores.js';
 
 /** @typedef {import('../core/offers.js').Offer} Offer */
 

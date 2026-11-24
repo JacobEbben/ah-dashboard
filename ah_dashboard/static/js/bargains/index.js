@@ -6,9 +6,12 @@
 //   EV.refilter     a setting or the overview selection changed
 //   EV.lists        liked / hidden products changed
 //   EV.stores       the store list changed ({reload}: a store was added)
+//   EV.inStore      "I'm in this store" changed (store bar, Stores panel)
+//   EV.cart         the cart changed (the cards' cart buttons)
 //   EV.bonusStatus  this week's Bonus loaded (cards' Bonus tag, "Bonus" filter)
 //   EV.cols, EV.lang, window resize
 //
+// It emits EV.bargains with what it has loaded (the cart greys out what is gone).
 // No token handling: the server uses its own AH login.
 import { api, ApiError, errorText } from '../core/api.js';
 import { $ } from '../core/dom.js';
@@ -24,12 +27,16 @@ import { filterOffers } from './model.js';
 import { initPresets } from './presets.js';
 import { renderSpecialNotice } from './special.js';
 import { clearResults, currentCols, render } from './render.js';
-import { initStores, myStores, openStoresPanel, storeRefs } from './stores.js';
+import { myStores, storeRefs } from '../lists/stores.js';
+import { initStores, openStoresPanel } from './stores.js';
+export { openStoreSearch } from './stores.js';
 
 /** @typedef {import('../core/offers.js').Offer} Offer */
 
 /** @type {Offer[]} the loaded bargains (all stores) */
 let allItems = [];
+/** @type {Set<number>} stores whose bargains in allItems are complete (loaded without an error) */
+let knownStores = new Set();
 /** @type {{csrf: string}|null} while signed in as admin */
 let admin = null;
 /** This week's Bonus as far as known (EV.bonusStatus). */
@@ -88,6 +95,7 @@ function storeErrorsText(errs) {
 /** Show these bargains (replacing what was loaded). @param {Offer[]} items */
 function setItems(items) {
   allItems = items;
+  emit(EV.bargains, { items: allItems, storeIds: [...knownStores] });
   buildCategoryFilter(allItems);
   setFilterPanelVisible(allItems.length > 0);
   if (allItems.length) refresh();
@@ -108,8 +116,10 @@ export async function loadBargains({ force = false } = {}) {
     const data = force && admin
       ? await api.forceFetchBargains(storeRefs(), admin.csrf)
       : await api.fetchBargains(storeRefs());
-    setItems(data.items || []);
     const errs = data.storeErrors || [];
+    const failed = new Set(errs.map((/** @type {any} */ e) => Number(e.storeId)));
+    knownStores = new Set(storeRefs().map(s => s.id).filter(id => !failed.has(id)));
+    setItems(data.items || []);
     setStatus(storeErrorsText(errs), errs.length > 0);
     // In the background: this week's Bonus, so cards can say "also in the Bonus".
     if (allItems.length) emit(EV.needBonus);
@@ -149,6 +159,7 @@ function storesChanged(detail) {
   if (detail && detail.reload) { loadBargains(); return; }
   // Removed or renamed: drop and relabel the loaded bargains instead of fetching again.
   const names = new Map(myStores().map(s => [s.id, s.name]));
+  knownStores = new Set([...knownStores].filter(id => names.has(id)));
   setItems(allItems.filter(o => names.has(Number(o.storeId)))
     .map(o => ({ ...o, storeName: names.get(Number(o.storeId)) || o.storeName })));
 }
@@ -168,6 +179,8 @@ export function initBargains() {
     refresh();
   });
   on(EV.lists, () => { if (allItems.length) refresh(); });   // likes break ties / "Liked" filter, hidden ones go
+  on(EV.cart, () => { if (allItems.length) refresh(); });    // the cards' cart buttons
+  on(EV.inStore, () => { clearFocus(); refresh(); });       // only the bargains of the store the visitor is in
   on(EV.lang, refresh);
   on(EV.stores, storesChanged);
   on(EV.bonusStatus, (/** @type {{status: string, deals: Map<number, string>}} */ d) => {

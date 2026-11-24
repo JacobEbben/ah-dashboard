@@ -12,7 +12,7 @@ import { t } from '../core/i18n.js';
 import { KEYS, storage } from '../core/storage.js';
 import { showHiddenEnabled } from '../lists/blacklist.js';
 import { knownCats } from './model.js';
-import { inStoreId } from './stores.js';
+import { inStoreId } from '../lists/stores.js';
 
 /** @typedef {import('./model.js').Cats} Cats */
 /** @typedef {import('./model.js').Filter} Filter */

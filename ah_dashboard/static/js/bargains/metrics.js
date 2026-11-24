@@ -16,7 +16,7 @@ import { productKey } from '../core/offers.js';
 import { isHidden } from '../lists/blacklist.js';
 import { isLiked } from '../lists/likes.js';
 import { isSpecial } from './model.js';
-import { colorClass, myStores } from './stores.js';
+import { colorClass, myStores } from '../lists/stores.js';
 
 /** @typedef {import('../core/offers.js').Offer} Offer */
 /** @typedef {{store: number|null, kind: string, level?: number}} Focus a clicked number */

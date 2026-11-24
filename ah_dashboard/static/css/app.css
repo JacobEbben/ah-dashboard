@@ -113,7 +113,7 @@ button:focus-visible { outline: none; box-shadow: var(--ring); }
 button:disabled { opacity: .5; cursor: default; }
 
 /* Secondary buttons (reset the primary look) */
-.mini, .foldbtn, .presetbtn, .cat, .hidebtn, .likebtn, button.secondary, .mystore .sdel {
+.mini, .foldbtn, .presetbtn, .cat, .hidebtn, .likebtn, .cartbtn, button.secondary, .mystore .sdel {
   box-shadow: none;
 }
 .mini {
@@ -414,13 +414,16 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
 .exp.today { font-size: calc(11px * var(--cs)); font-weight: 800; color: var(--today-ink); background: var(--today-bg);
   border-radius: var(--radius-tag); padding: calc(4px * var(--cs)) calc(9px * var(--cs)); text-transform: uppercase; letter-spacing: .06em; }
 
-/* Like / hide buttons on cards; a favourite turns gold */
-.likebtn, .hidebtn {
+/* Cart / like / hide buttons on cards; a favourite turns gold, a product in the cart azure */
+.cartbtn, .likebtn, .hidebtn {
   flex: none; width: calc(30px * var(--cs)); height: calc(30px * var(--cs)); padding: 0; border-radius: var(--radius-ctl); display: inline-flex;
   align-items: center; justify-content: center; background: var(--surface-2); color: var(--muted);
   border: 1px solid var(--line); font-size: calc(12px * var(--cs)); font-weight: 700; line-height: 1;
 }
-.likebtn svg { width: calc(15px * var(--cs)); height: calc(15px * var(--cs)); }
+.likebtn svg, .cartbtn svg { width: calc(15px * var(--cs)); height: calc(15px * var(--cs)); }
+.cartbtn:hover { color: var(--accent-ink); border-color: var(--accent); }
+.cartbtn.on { background: var(--accent); border-color: transparent; color: var(--on-accent); }
+.cartbtn.on:hover { color: var(--on-accent); }
 .likebtn:hover { color: var(--ink); border-color: var(--or); }
 .likebtn.on { background: var(--or); border-color: transparent; color: var(--on-or); }
 .likebtn.on:hover { color: var(--on-or); }
@@ -530,13 +533,19 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
 .dot { background: var(--sc, var(--muted)); }
 .grouptitle.storecolor { color: var(--sc); }
 
-/* View switch (Bargains | Bonus) in the header */
+/* View switch (Bargains | Bonus | Cart) in the header; the Cart shows how many items it has */
 .viewswitch { display: inline-flex; gap: 2px; padding: 3px; border-radius: 6px;
   background: var(--surface-2); border: 1px solid var(--line); }
 .viewswitch .viewbtn { padding: 7px 14px; border-radius: 4px; font-size: 13px; background: transparent;
   color: var(--muted); box-shadow: none; }
 .viewswitch .viewbtn:hover { color: var(--ink); }
 .viewswitch .viewbtn.active { background: var(--accent); color: var(--on-accent); }
+.cartcount { display: inline-block; min-width: 18px; margin-left: 6px; padding: 1px 5px; border-radius: 9px; font-size: 11px;
+  font-weight: 800; line-height: 16px; text-align: center; background: var(--chip); color: var(--ink); }
+.cartcount[hidden] { display: none; }
+.viewbtn.active .cartcount { background: var(--on-accent); color: var(--accent-ink); }
+/* The cart has no card grid: no cards-per-row slider there (ui/view.js sets data-view). */
+:root[data-view="cart"] .controls .colsctl { display: none; }
 
 /* Bonus cards: deal text in the pennant, old price struck through */
 .badge.mech { white-space: normal; font-size: calc(13px * var(--cs)); line-height: 1.2; max-width: calc(100% - 10px * var(--cs)); }
@@ -687,7 +696,7 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
   .controls #theme { grid-column: 3; grid-row: 1; }
   .controls .langsel { padding: 6px 22px 6px 8px; font-size: 13px; background-position: right 5px center; }
   .controls .authbtn, .controls .userbox { grid-column: 1 / -1; }
-  .controls .viewswitch { display: grid; grid-template-columns: 1fr 1fr; }
+  .controls .viewswitch { display: grid; grid-template-columns: repeat(3, 1fr); }
   .controls .toolline { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
   .controls .toolline .viewswitch { flex: 1 1 auto; }
   .controls .toolline #go { padding: 8px 14px; font-size: 13px; }
@@ -727,3 +736,48 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
 .grouplist li { padding: calc(3px * var(--cs)) 0; line-height: 1.3; }
 .grouplist a { color: var(--ink); text-decoration: none; }
 .grouplist a:hover, .grouplist a:focus-visible { text-decoration: underline; }
+
+/* The cart view (static/js/cart/index.js): a section per store, the Bonus last; one row per item.
+   What is gone from the latest results is greyed out (and says so). */
+.summaryrow .linkbtn + .linkbtn { margin-left: 0; }
+.cartlist { margin-top: 8px; }
+.cartempty { margin: 24px 0; color: var(--muted); }
+.cartsec { margin-top: 18px; }
+.carthead { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; font-family: var(--font-display); font-size: 17px; }
+.carthead .dot { flex: none; width: 12px; height: 12px; border-radius: 2px; }
+.carthead .grouptitle { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.carthead .smeta { font-family: var(--font-text); font-size: 12px; font-weight: 700; }
+.carthead::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.cartrows { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow-sm); }
+.cartrow { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto auto auto; align-items: center; gap: 12px;
+  padding: 8px 12px; border-top: 1px solid var(--line); }
+.cartrow:first-child { border-top: 0; }
+.cartrow.gone { opacity: .5; filter: grayscale(1); }
+.cartrow.gone:hover { opacity: .8; }
+.cartrow.gone .cartname { text-decoration: line-through; }
+.cartthumb { width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-tag);
+  background: var(--imgbg); overflow: hidden; }
+.cartthumb img { max-width: 100%; max-height: 100%; object-fit: contain; filter: var(--imgfilter); }
+.cartthumb.noimg { background: var(--surface-2); }
+.cartmain { min-width: 0; }
+.cartname { display: block; font-weight: 700; color: var(--ink); text-decoration: none; overflow: hidden; text-overflow: ellipsis; }
+a.cartname:hover { color: var(--accent-ink); text-decoration: underline; }
+.cartmeta { font-size: 12px; color: var(--muted); }
+.cartgone { font-weight: 800; color: var(--red); }
+.cartrow.gone .cartgone { color: var(--ink); }
+.cartdisc .badge.disc { display: inline-block; font-size: 14px; white-space: nowrap; }
+.cartdisc .badge.mech { white-space: normal; max-width: 160px; font-size: 12px; }
+.cartprices { display: flex; flex-direction: column; align-items: flex-end; }
+.cartprices .now { font-family: var(--font-display); font-size: 17px; font-weight: 800; color: var(--hot); white-space: nowrap; }
+.cartprices .was { margin: 0; font-size: 12px; color: var(--muted); text-decoration: line-through; white-space: nowrap; }
+.cartrow.gone .cartprices .now { color: var(--muted); }
+.cartdel { padding: 6px 10px; }
+@media (max-width: 700px) {
+  .cartrow { grid-template-columns: 40px minmax(0, 1fr) auto auto; gap: 4px 10px; padding: 8px 10px; }
+  .cartthumb { width: 40px; height: 40px; }
+  .cartdisc { grid-column: 2; grid-row: 2; }
+  .cartprices { grid-column: 3; grid-row: 1 / span 2; }
+  .cartdel { grid-column: 4; grid-row: 1 / span 2; }
+  .cartthumb { grid-row: 1 / span 2; }
+}

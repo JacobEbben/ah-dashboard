@@ -270,6 +270,23 @@ def test_prefs_round_trip_and_persist(app, tmp_path):
     assert services(app).db.one("SELECT 1 FROM user_prefs WHERE username = 'alice'") is None
 
 
+def test_cart_follows_the_account_to_other_devices(app):
+    # A full cart (300 entries, core/cart.js MAX_CART) with long titles stays within the size limits,
+    # and a second device signed in as the same user gets it; the cart's store filter is per device.
+    entry = {"kind": "bargain", "title": "x" * 120, "unitSize": "500 g", "image": "https://static.ah.nl/" + "a" * 200,
+             "priceNow": 1.09, "priceWas": 2.18, "added": 1764000000000, "storeId": 1002, "storeName": "Home",
+             "discount": 50, "expires": "2026-11-25"}
+    cart = json.dumps([{**entry, "key": f"b:1002:{i}", "id": i} for i in range(300)])
+    assert "ah_cart" in config_of(app.test_client())["syncKeys"]
+    assert "ah_cart_store" not in config_of(app.test_client())["syncKeys"]
+    phone, h = signed_in(app)
+    assert phone.put("/api/prefs", json={"prefs": {"ah_cart": cart}}, headers=h).status_code == 200
+    laptop, _ = signed_in(app)
+    assert laptop.get("/api/prefs").get_json()["prefs"]["ah_cart"] == cart
+    assert phone.put("/api/prefs", json={"prefs": {"ah_cart": cart, "ah_cart_store": "1002"}},
+                     headers=h).status_code == 400
+
+
 def test_prefs_need_csrf_and_sign_in(app):
     c, h = signed_in(app)
     assert c.put("/api/prefs", json={"prefs": {"ah_lang": "en"}}).status_code == 403

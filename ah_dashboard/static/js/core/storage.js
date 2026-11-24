@@ -27,6 +27,8 @@ export const KEYS = {
   liked: 'ah_liked',              // liked products [{key, title}]
   showHidden: 'ah_show_hidden',   // "Show hidden products" toggle
   inStore: 'ah_instore',         // "I'm in this store": {id, until}; per browser, not synced, expires
+  cart: 'ah_cart',                // the cart: [{key, kind, title, …}] (core/cart.js), synced
+  cartStore: 'ah_cart_store',     // the cart's store filter: a store id (absent = all stores); per browser, not synced
   cols: 'ah_cols',                // cards per row, '1'..'8' (absent = auto); per browser, not synced
 };
 

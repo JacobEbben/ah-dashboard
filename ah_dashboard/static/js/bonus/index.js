@@ -15,7 +15,7 @@
 // feeds the bargains' Bonus tags or the liked-products notice (this week only).
 //
 // Events: emits EV.bonusStatus (bargain cards' Bonus tag, "Bonus"
-// filter); listens to EV.needBonus, EV.lists, EV.cols, EV.lang.
+// filter, the cart); listens to EV.needBonus, EV.lists, EV.cart, EV.cols, EV.lang.
 import { api, ApiError, errorText } from '../core/api.js';
 import { $, html } from '../core/dom.js';
 import { emit, on, EV } from '../core/events.js';
@@ -125,7 +125,8 @@ function card(o) {
       ${was != null && was !== now ? html`<span class="was">${euro(was)}</span>` : ''}
       ${now != null && minQty > 1 ? html`<span class="peritem">${t('perItemAt', minQty)}</span>` : ''}
     </div>`;
-  wireCard(el, o);
+  const d = shown();
+  wireCard(el, o, d && d.period ? d.period : null);   // the cart keeps which week the deal is for
   const toggle = el.querySelector('.grouptoggle');
   if (toggle) toggle.addEventListener('click', () => {
     const open = toggle.getAttribute('aria-expanded') !== 'true';
@@ -250,7 +251,10 @@ function renderBonus() {
 
 /** @param {'loading'|'ready'|'failed'} status */
 function announceStatus(status) {
-  emit(EV.bonusStatus, { status, deals: status === 'ready' && data ? indexDeals(data.items || []) : new Map() });
+  const ready = status === 'ready' && data;
+  const items = ready && data && Array.isArray(data.items) ? data.items : [];
+  const complete = !!ready && !(data && Array.isArray(data.errors) && data.errors.length);
+  emit(EV.bonusStatus, { status, deals: ready ? indexDeals(items) : new Map(), items, complete });
 }
 
 /**
@@ -409,6 +413,7 @@ export function initBonus() {
   on(EV.needBonus, () => { if (!bonusReady) loadBonus({ quiet: true }); });
   on(EV.bonusStatus, (/** @type {{status: string}} */ d) => { bonusReady = d.status === 'ready'; });
   on(EV.lists, () => { if (shown()) renderBonus(); });   // liked / hidden changed (either view)
+  on(EV.cart, () => { if (shown()) renderBonus(); });    // the cards' cart buttons
   on(EV.lang, () => { renderBonus(); noteNext(); });
   $('bonusWeekSeg').addEventListener('click', e => {
     const b = /** @type {HTMLElement|null} */ (e.target instanceof Element ? e.target.closest('.segbtn') : null);
