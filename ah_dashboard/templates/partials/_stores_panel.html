@@ -13,10 +13,11 @@
     </div>
     <div class="filterrow fullrow">
       <label for="storeQuery" data-i18n="findStore"></label>
-      <div class="preset-actions">
-        <input id="storeQuery" type="text" class="wide-input" data-i18n-ph="storeQueryPh" autocomplete="off">
-        <button type="button" id="storeSearchBtn" class="mini" data-i18n="search"></button>
-        <button type="button" id="storeClearBtn" class="mini" data-i18n="clear" data-i18n-title="clearTitle" hidden></button>
+      {# One bar like the others (app.css .toolseg): postal code, Search, and Clear once there is something to clear. #}
+      <div class="segmented toolseg searchtools" role="search">
+        <input id="storeQuery" type="text" class="segfield" data-i18n-ph="storeQueryPh" autocomplete="off">
+        <button type="button" id="storeSearchBtn" class="segbtn segmain" data-i18n="search"></button>
+        <button type="button" id="storeClearBtn" class="segbtn" data-i18n="clear" data-i18n-title="clearTitle" hidden></button>
       </div>
       <div id="storeSearchStatus" class="smeta" aria-live="polite"></div>
       <div id="storeResults" class="storeresults"></div>

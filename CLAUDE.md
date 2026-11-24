@@ -191,6 +191,7 @@ Plain ES modules with no build step. `main.js` is the composition root. Allowed 
 - **JS typing**: every JS file starts with `// @ts-check` (`theme-init.js` excepted, as a classic script) and uses JSDoc types.
 - **Result grids**: build sections with `ui/cards.section()` and place them with `placeSections(grid, sections, cols, dense)`; `core/layout.packSections` decides bands and columns.
 - **Card sizes** scale with `--cs`: write sizes in `app.css` as `calc(Npx * var(--cs))`. `ui/density.autoCols()` mirrors the CSS breakpoints; keep them in step.
+- **Bars**: choices and tool rows are segmented bars (`.segmented` + `.segbtn`, 46px high, one row; wider than the room → they scroll sideways). A bar with a field (the presets' select/name + Update/Delete/Save, the postal-code search) is `.segmented.toolseg` with `.segfield` inputs; the main action is `.segbtn.segmain`, a destructive one `.segbtn.danger`. Use these instead of loose inputs with `.mini` buttons.
 - **Theme**: all colours are tokens at the top of `static/css/app.css`: light (`:root`, the default) and dark (`:root[data-theme="dark"]`, only when chosen in the header menu). The system's light/dark setting is deliberately NOT followed: no `prefers-color-scheme`, no `matchMedia` (`tests/test_theme.py`). `ah_theme` stores `dark`, or nothing for light. Don't add raw hex values in component rules.
 - **Python style**:
   - Use `from __future__ import annotations` and frozen dataclasses for settings and models.

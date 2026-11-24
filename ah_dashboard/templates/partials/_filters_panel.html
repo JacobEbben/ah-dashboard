@@ -36,15 +36,14 @@
     </div>
     <div class="filterrow fullrow">
       <label for="presetSel" data-i18n="presets"></label>
-      <div class="preset-actions">
-        <select id="presetSel"><option value=""></option></select>
-        <button type="button" id="presetUpdate" class="mini" data-i18n="updatePreset" data-i18n-title="updatePresetTitle" disabled></button>
-        <button type="button" id="presetDel" class="mini" data-i18n="delete" data-i18n-title="deleteTitle" disabled></button>
-      </div>
-      <div class="preset-actions">
-        <input id="presetName" type="text" data-i18n-ph="presetNamePh" maxlength="40" autocomplete="off"
+      {# One bar like the others (app.css .toolseg): pick a preset (Update / Delete act on it), or name a new one and Save. #}
+      <div class="segmented toolseg presettools" role="group" data-i18n-aria="presets">
+        <select id="presetSel" class="segfield"><option value=""></option></select>
+        <button type="button" id="presetUpdate" class="segbtn" data-i18n="updatePreset" data-i18n-title="updatePresetTitle" disabled></button>
+        <button type="button" id="presetDel" class="segbtn danger" data-i18n="delete" data-i18n-title="deleteTitle" disabled></button>
+        <input id="presetName" type="text" class="segfield" data-i18n-ph="presetNamePh" maxlength="40" autocomplete="off"
                data-i18n-aria="presetNamePh">
-        <button type="button" id="presetSave" class="mini" data-i18n="save" data-i18n-title="saveTitle"></button>
+        <button type="button" id="presetSave" class="segbtn segmain" data-i18n="save" data-i18n-title="saveTitle"></button>
       </div>
     </div>
   </div>
