@@ -33,19 +33,3 @@ export function fmtDate(s) {
   const d = parseDay(s);
   return d ? `${d.getDate()} ${t('months')[d.getMonth()]} ${d.getFullYear()}` : String(s);
 }
-
-/**
- * Case- and accent-insensitive text for searching ("creme" finds "crème").
- * @param {unknown} s
- */
-export function fold(s) {
-  return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-}
-
-/**
- * The words of a search query, folded; a text matches when it contains all.
- * @param {string} query
- */
-export function searchTerms(query) {
-  return fold(query).split(/\s+/).filter(Boolean);
-}

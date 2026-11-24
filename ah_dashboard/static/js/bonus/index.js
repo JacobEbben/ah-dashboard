@@ -4,9 +4,7 @@
 // the categories (filters.js); the offers of every chosen category are shown
 // at once, one section per category in AH's order. The "Liked" pill next to
 // the presets bar is a filter: while on, only liked products (saved with the
-// categories as ah_bonus_filters {liked, cats}, synced). The search field
-// searches every category at once (only liked ones while the Liked filter is
-// on). Cards have the same like and hide buttons as the bargains (shared
+// categories as ah_bonus_filters {liked, cats}, synced). Cards have the same like and hide buttons as the bargains (shared
 // lists). Offers are in AH's order, liked ones first. The notice bar says when
 // liked products are on Bonus this week.
 //
@@ -19,7 +17,7 @@
 import { api, ApiError, errorText } from '../core/api.js';
 import { $, html } from '../core/dom.js';
 import { emit, on, EV } from '../core/events.js';
-import { euro, fmtDate, searchTerms, fold } from '../core/format.js';
+import { euro, fmtDate } from '../core/format.js';
 import { t } from '../core/i18n.js';
 import { productKey, productUrl, safeImageUrl } from '../core/offers.js';
 import { KEYS, storage } from '../core/storage.js';
@@ -197,7 +195,6 @@ function renderBonus() {
   summary.textContent = '';
   $('bonusLikedBtn').hidden = true;
   const d = shown();
-  $('bonusSearchBar').hidden = !d;
   const categories = d && Array.isArray(d.categories) ? d.categories : [];
   buildCategoryFilter(categories);
   if (!d) return;
@@ -218,19 +215,6 @@ function renderBonus() {
     [...categoryGroups(list, categories)].map(([name, offers]) => section(name, '', sortOffers(offers, isLiked).map(card))),
     cols(), true);
   lastCols = cols();
-
-  // Search: matches from every category (only liked ones while the Liked filter is on).
-  const query = $('bonusSearch').value.trim();
-  const terms = searchTerms(query);
-  if (terms.length) {
-    const matches = (likedPill ? liked : items).filter(o => {
-      const text = fold([o.title, o.brand].filter(Boolean).join(' '));
-      return terms.every(w => text.includes(w));
-    });
-    summary.textContent = withHidden(matches.length ? t('bonusSearchSummary', matches.length, query) : t('bonusNoSearchMatch', query));
-    show(matches);
-    return;
-  }
 
   // The chosen categories (Filters, presets), and the Liked filter on top.
   const chosen = selectCats(categoryGroups(items, categories), currentCats());
@@ -382,25 +366,7 @@ async function checkNext() {
 
 let bonusReady = false;
 
-function initSearch() {
-  const input = $('bonusSearch');
-  const clearBtn = $('bonusSearchClear');
-  /** @type {any} */
-  let timer = 0;
-  const run = () => { clearTimeout(timer); clearBtn.hidden = !input.value; renderBonus(); };
-  input.addEventListener('input', () => {
-    clearBtn.hidden = !input.value;
-    clearTimeout(timer);
-    timer = setTimeout(run, 150);
-  });
-  input.addEventListener('keydown', (/** @type {KeyboardEvent} */ e) => {
-    if (e.key === 'Escape' && input.value) { e.preventDefault(); input.value = ''; run(); }
-  });
-  clearBtn.addEventListener('click', () => { input.value = ''; run(); input.focus(); });
-}
-
 export function initBonus() {
-  initSearch();
   const saved = storage.getJSON(KEYS.bonusFilters, null);
   likedPill = parseLikedPill(saved);
   initFilters(parseCats(saved && saved.cats), () => { saveFilters(); renderBonus(); });

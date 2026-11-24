@@ -66,13 +66,6 @@
     <div id="bonusPanelRow" class="panelrow">
       {% include "partials/_bonus_filters_panel.html" %}
     </div>
-    {# Search over every Bonus category. Hidden until the Bonus is loaded. #}
-    <div id="bonusSearchBar" class="searchbar" role="search" hidden>
-      <label for="bonusSearch" class="searchlabel" data-i18n="searchBonus"></label>
-      <input id="bonusSearch" type="search" class="wide-input" data-i18n-ph="searchBonusPh"
-             maxlength="100" autocomplete="off" spellcheck="false">
-      <button type="button" id="bonusSearchClear" class="mini" data-i18n="clear" hidden></button>
-    </div>
     <div id="bonusStatus" class="status" role="status" aria-live="polite"></div>
     <div id="bonusSummary" class="summary"></div>
     <div id="bonusResults"></div>

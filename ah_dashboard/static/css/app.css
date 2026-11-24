@@ -54,7 +54,6 @@
   --font-display: "Red Hat Display", "Red Hat Text", "Segoe UI", system-ui, sans-serif;
   --font-text: "Red Hat Text", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
   --chev: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23566072' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-  --search: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23566072' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E");
   --chevron-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 12' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 11 5 6 1 1M8 11l4-5-4-5'/%3E%3C/svg%3E");
   color-scheme: light;
 }
@@ -299,17 +298,7 @@ button.specialnotice:focus-visible { box-shadow: var(--ring); }
 .hiddenchip .hiddenname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
 .hiddenchip .restore { padding: 2px 8px; border-radius: 3px; }
 
-/* ---- search, status, summary ------------------------------------------------------- */
-.searchbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 18px; }
-.searchbar[hidden] { display: none; }
-.searchlabel { margin: 0; font-size: 11px; }
-.searchbar input { width: 440px; max-width: 100%; padding: 11px 16px 11px 42px; border-radius: 6px;
-  font-size: 15px; box-shadow: var(--shadow-xs);
-  background-image: var(--search); background-repeat: no-repeat; background-position: 14px center;
-  background-size: 18px; }
-.searchbar input:focus { box-shadow: var(--ring); }
-.searchbar .mini { padding: 10px 14px; border-radius: var(--radius-ctl); }
-input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
+/* ---- status, summary ------------------------------------------------------- */
 
 .status { margin: 16px 0; font-size: 14px; color: var(--muted); }
 .status:empty { margin: 0; }
@@ -430,7 +419,6 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
 [hidden] { display: none !important; }
 .check { width: auto; }
 .fullrow { flex-basis: 100%; }
-.wide-input { width: 320px; max-width: 100%; }
 
 /* ---- footer, privacy statement and terms of use (same layout) --------------------------------------------------------------- */
 .sitefooter { max-width: 2200px; margin: 0 auto; padding: 0 28px 28px; font-size: 13px;
@@ -510,7 +498,6 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
   .filters { padding: 14px; gap: 16px; }
   .card { padding: calc(8px * var(--cs)) calc(9px * var(--cs)) calc(12px * var(--cs)); }
   .now { font-size: calc(20px * var(--cs)); }
-  .searchbar input { width: 100%; }
 }
 
 /* Store colours (classes instead of style attributes, so the CSP needs no
@@ -540,8 +527,9 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
   font-weight: 800; line-height: 16px; text-align: center; background: var(--chip); color: var(--ink); }
 .cartcount[hidden] { display: none; }
 .viewbtn.active .cartcount { background: var(--on-accent); color: var(--accent-ink); }
-/* The cart has no card grid: no cards-per-row slider there (ui/view.js sets data-view). */
-:root[data-view="cart"] .controls .colsctl { display: none; }
+/* The cart has no card grid: no cards-per-row slider there (ui/view.js sets data-view). Invisible, not
+   display:none, so it keeps its room and the view switch next to it stays put when switching views. */
+:root[data-view="cart"] .controls .colsctl { visibility: hidden; }
 
 /* Bonus cards: deal text in the pennant, old price struck through */
 .badge.mech { white-space: normal; font-size: calc(13px * var(--cs)); line-height: 1.2; max-width: calc(100% - 10px * var(--cs)); }

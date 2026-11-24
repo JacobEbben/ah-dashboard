@@ -1,18 +1,19 @@
 <div class="controls">
   <h1 class="apptitle" data-i18n="title"></h1>
-  {# Phones: the view switch, cards per row and Refresh share one line (app.css .toolline). #}
+  {# Phones: cards per row, the view switch and Refresh share one line (app.css .toolline).
+     The slider comes first: on the Cart it is only made invisible, so the view switch never moves. #}
   <div class="toolline">
-  <div class="viewswitch" role="group" data-i18n-aria="viewSwitch">
-    <button type="button" class="viewbtn" data-view="bargains" data-i18n="viewBargains" aria-pressed="true"></button>
-    <button type="button" class="viewbtn" data-view="bonus" data-i18n="viewBonus" aria-pressed="false"></button>
-    {# The count of items in the cart (static/js/cart/index.js). #}
-    <button type="button" class="viewbtn" data-view="cart" aria-pressed="false"><span data-i18n="viewCart"></span><span id="cartCount" class="cartcount" hidden></span></button>
-  </div>
   {# Cards per row: Auto (fits the screen) until the slider is moved, then 1-8, capped to what fits (static/js/ui/density.js). #}
   <div class="colsctl" role="group" data-i18n-aria="cardsPerRow">
     <label for="colsRange" class="colslabel" data-i18n="perRow"></label>
     <input type="range" id="colsRange" min="1" max="8" step="1" value="4" data-i18n-title="cardsPerRow">
     <output id="colsValue" for="colsRange"></output>
+  </div>
+  <div class="viewswitch" role="group" data-i18n-aria="viewSwitch">
+    <button type="button" class="viewbtn" data-view="bargains" data-i18n="viewBargains" aria-pressed="true"></button>
+    <button type="button" class="viewbtn" data-view="bonus" data-i18n="viewBonus" aria-pressed="false"></button>
+    {# The count of items in the cart (static/js/cart/index.js). #}
+    <button type="button" class="viewbtn" data-view="cart" aria-pressed="false"><span data-i18n="viewCart"></span><span id="cartCount" class="cartcount" hidden></span></button>
   </div>
   <button id="go" type="button" data-i18n="refresh" data-i18n-title="refreshTitle"></button>
   <button id="forceRefresh" type="button" class="secondary" data-i18n="forceRefresh" data-i18n-title="forceRefreshTitle" hidden></button>

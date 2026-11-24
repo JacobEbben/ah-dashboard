@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { emit, on } from '../../ah_dashboard/static/js/core/events.js';
-import { fold, parseDay, searchTerms } from '../../ah_dashboard/static/js/core/format.js';
+import { parseDay } from '../../ah_dashboard/static/js/core/format.js';
 import { I18N } from '../../ah_dashboard/static/js/core/i18n.js';
 import { groupSize, memberKeys, productKey, productUrl, safeImageUrl } from '../../ah_dashboard/static/js/core/offers.js';
 import { compareUnit, parseUnitSize, unitPrice } from '../../ah_dashboard/static/js/core/unit.js';
@@ -54,9 +54,7 @@ test('links and images: only safe URLs', () => {
   assert.equal(safeImageUrl('http://example.com/a.jpg'), null);
 });
 
-test('search folding ignores case and accents', () => {
-  assert.equal(fold('Crème BRÛLÉE'), 'creme brulee');
-  assert.deepEqual(searchTerms('  Crème  fraîche '), ['creme', 'fraiche']);
+test('dates from AH are read as local days', () => {
   assert.equal(parseDay('2026-11-18').getDate(), 18);
   assert.equal(parseDay('nonsense'), null);
 });
