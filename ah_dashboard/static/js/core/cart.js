@@ -116,6 +116,47 @@ export function entriesFor(offer, { now, week = null, imageHosts = [] }) {
 }
 
 /**
+ * A bargain in the cart follows its product: the entries to add for every
+ * store in the latest bargains (``items``, one per store) that has a product
+ * the cart holds as a bargain, but no entry for that store yet (it became a
+ * bargain there after it was added). Bonus entries don't count (national).
+ * At most ``room`` entries, so adding never pushes out what the visitor picked.
+ * @param {CartEntry[]} entries
+ * @param {any[]} items
+ * @param {{now: number, imageHosts?: string[], room?: number}} ctx
+ * @returns {CartEntry[]}
+ */
+export function entriesAtNewStores(entries, items, { now, imageHosts = [], room = MAX_CART - entries.length }) {
+  const have = new Set(entries.map(e => e.key));
+  const products = new Set(entries.filter(e => e.kind === 'bargain').map(e => productKey(e)));
+  /** @type {CartEntry[]} */
+  const out = [];
+  for (const o of Array.isArray(items) ? items : []) {
+    if (out.length >= room) break;
+    if (!o || typeof o !== 'object' || o.kind === 'bonus' || !products.has(productKey(o))) continue;
+    for (const e of entriesFor({ ...o, stores: undefined }, { now, imageHosts })) {
+      if (have.has(e.key) || out.length >= room) continue;
+      have.add(e.key);
+      out.push(e);
+    }
+  }
+  return out;
+}
+
+/**
+ * The keys to remove with an entry: a bargain is the product at every store
+ * (else the next load would add the other stores back); a Bonus deal just itself.
+ * @param {CartEntry[]} entries
+ * @param {CartEntry} entry
+ * @returns {string[]}
+ */
+export function productKeys(entries, entry) {
+  if (entry.kind !== 'bargain') return [entry.key];
+  const key = productKey(entry);
+  return entries.filter(e => e.kind === 'bargain' && productKey(e) === key).map(e => e.key);
+}
+
+/**
  * One entry read back from storage (maybe from another device or version),
  * checked field by field; null when it isn't usable. The key is made again
  * from the checked fields, so it always matches what it says. An image not on

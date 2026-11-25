@@ -5,7 +5,7 @@
 // EV.cart; the cart view and the cards re-render themselves.
 import { config } from '../core/config.js';
 import { emit, EV } from '../core/events.js';
-import { cleanEntries, entriesFor } from '../core/cart.js';
+import { cleanEntries, entriesAtNewStores, entriesFor, MAX_CART, productKeys } from '../core/cart.js';
 import { KEYS, storage } from '../core/storage.js';
 
 /** @typedef {import('../core/cart.js').CartEntry} CartEntry */
@@ -35,7 +35,7 @@ export function inCart(offer) {
 
 /**
  * Add the offer (a bargain card: at each store it shows), or remove it when
- * it is in the cart. ``week``: the Bonus week a deal was shown for.
+ * it is in the cart (a bargain: at every store). ``week``: the Bonus week a deal was shown for.
  * @param {any} offer
  * @param {{start: string|null, end: string|null}|null} [week]
  */
@@ -43,13 +43,35 @@ export function toggleCart(offer, week = null) {
   const entries = entriesFor(offer, { now: Date.now(), week, imageHosts: config.imageHosts });
   if (!entries.length) return;
   if (entries.some(e => cart.has(e.key))) {
-    for (const e of entries) cart.delete(e.key);
+    // A bargain goes at every store (the cart would add the other stores back on the next load).
+    const all = cartEntries();
+    for (const e of entries) for (const key of productKeys(all, e)) cart.delete(key);
   } else {
     for (const e of entries) cart.set(e.key, e);
     // The newest MAX_CART stay (cleanEntries caps the list).
     cart = new Map(cleanEntries([...cart.values()], config.imageHosts).map(e => [e.key, e]));
   }
   changed();
+}
+
+/**
+ * The latest bargains loaded (one item per store): a product in the cart as a
+ * bargain that is now also a bargain at another followed store gets an entry
+ * there too. Returns whether anything was added (then EV.cart was emitted).
+ * @param {any[]} items
+ */
+export function followBargains(items) {
+  const added = entriesAtNewStores(cartEntries(), items,
+    { now: Date.now(), imageHosts: config.imageHosts, room: MAX_CART - cart.size });
+  if (!added.length) return false;
+  for (const e of added) cart.set(e.key, e);
+  changed();
+  return true;
+}
+
+/** Remove an entry from the cart view: a bargain at every store, a Bonus deal itself. @param {CartEntry} entry */
+export function removeProduct(entry) {
+  removeFromCart(productKeys(cartEntries(), entry));
 }
 
 /** @param {string[]} keys */

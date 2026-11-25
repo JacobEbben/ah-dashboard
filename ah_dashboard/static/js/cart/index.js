@@ -11,6 +11,8 @@
 // controller) and EV.bonusStatus (the Bonus controller); it asks for this
 // week's Bonus with EV.needBonus when the cart has anything: to check its Bonus
 // deals, and to show the Bonus deal next to a bargain whose product is also on Bonus.
+// New bargains also update the cart: a product in it that is now a bargain at another
+// followed store gets an entry there (lists/cart.followBargains).
 // Listens to EV.cart, EV.bargains, EV.bonusStatus, EV.stores, EV.lang.
 import { $, html } from '../core/dom.js';
 import { emit, on, EV } from '../core/events.js';
@@ -20,7 +22,7 @@ import { t } from '../core/i18n.js';
 import { KEYS, storage } from '../core/storage.js';
 import { config } from '../core/config.js';
 import { allowedImageUrl, productUrl } from '../core/offers.js';
-import { cartEntries, clearCart, removeFromCart } from '../lists/cart.js';
+import { cartEntries, clearCart, followBargains, removeFromCart, removeProduct } from '../lists/cart.js';
 import { myStores, storeIdClass } from '../lists/stores.js';
 import { renderStoreBar } from '../ui/storebar.js';
 
@@ -129,7 +131,7 @@ function row(r, today) {
     <span class="cartdisc">${storeStocks(r)}${discountBadge(r)}${bonusNote(r)}</span>
     <span class="cartprices"><span class="now">${now != null ? euro(now) : ''}</span>${was != null && now != null && was > now ? html`<span class="was" title="${t('regularPrice')}">${euro(was)}</span>` : ''}</span>
     <button type="button" class="mini cartdel" title="${t('cartRemove')}" aria-label="${t('cartRemove')}: ${e.title}">✕</button>`;
-  li.querySelector('.cartdel')?.addEventListener('click', () => removeFromCart([e.key]));
+  li.querySelector('.cartdel')?.addEventListener('click', () => removeProduct(e));
   const image = li.querySelector('img');
   if (image) image.addEventListener('error', () => { image.parentElement?.classList.add('noimg'); image.remove(); });
   return li;
@@ -189,7 +191,8 @@ export function initCart() {
   on(EV.cart, () => { needBonus(); renderCart(); });
   on(EV.bargains, (/** @type {{items: any[], storeIds: number[]}} */ d) => {
     latest.bargains = indexBargains(d.items || [], d.storeIds || []);
-    renderCart();
+    // A product in the cart that is now a bargain at another store too gets that store (EV.cart redraws).
+    if (!followBargains(d.items || [])) renderCart();
   });
   on(EV.bonusStatus, (/** @type {{status: string, deals?: Map<number, string>, items?: any[], complete?: boolean}} */ d) => {
     if (d.status !== 'ready') return;          // loading / failed: keep what was known

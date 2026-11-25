@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { activeCartStore, bargainKey, bonusKey, cartSections, cleanEntries, cleanEntry, dayOf, entriesFor, entryStatus,
-  indexBargains, indexBonus, MAX_CART, todayOf } from '../../ah_dashboard/static/js/core/cart.js';
+import { activeCartStore, bargainKey, bonusKey, cartSections, cleanEntries, cleanEntry, dayOf, entriesAtNewStores, entriesFor,
+  entryStatus, indexBargains, indexBonus, MAX_CART, productKeys, todayOf } from '../../ah_dashboard/static/js/core/cart.js';
 import { mergePrefs } from '../../ah_dashboard/static/js/sync/merge.js';
 import { allowedImageUrl } from '../../ah_dashboard/static/js/core/offers.js';
 
@@ -240,5 +240,47 @@ test('the cart button: a card for two stores adds both, and removes both when ta
   clearCart();
   assert.equal(cartEntries().length, 0);
   assert.equal(changes, 5);
+  off();
+});
+
+test('a bargain in the cart follows its product to stores where it became a bargain later', () => {
+  const entries = [...entriesFor(bargain(7, 1), { now: 1 }), ...entriesFor(bonus(7), { now: 1, week: WEEK })];
+  const items = [bargain(7, 1), bargain(7, 2, { storeName: 'B', discount: 35 }), bargain(8, 2), bargain(7, 3)];
+  const added = entriesAtNewStores(entries, items, { now: 9 });
+  assert.deepEqual(added.map(e => e.key), ['b:2:7', 'b:3:7']);
+  assert.equal(added[0].storeName, 'B');
+  assert.equal(added[0].discount, 35);
+  assert.equal(added[0].added, 9);
+  // Already there: nothing to add. A Bonus deal alone doesn't follow bargains (national).
+  assert.equal(entriesAtNewStores([...entries, ...added], items, { now: 9 }).length, 0);
+  assert.equal(entriesAtNewStores(entriesFor(bonus(7), { now: 1 }), items, { now: 9 }).length, 0);
+  // Never more than the room left in the cart.
+  assert.deepEqual(entriesAtNewStores(entries, items, { now: 9, room: 1 }).map(e => e.key), ['b:2:7']);
+  // Removing a bargain removes the product at every store; a Bonus deal only itself.
+  const all = [...entries, ...added];
+  assert.deepEqual(productKeys(all, added[0]), ['b:1:7', 'b:2:7', 'b:3:7']);
+  assert.deepEqual(productKeys(all, entries[1]), ['p:7']);
+});
+
+test('the cart list adds the new stores when bargains load, and the cart view removes the product everywhere', async () => {
+  const { cartEntries, clearCart, followBargains, removeProduct, toggleCart } =
+    await import('../../ah_dashboard/static/js/lists/cart.js');
+  const { on, EV } = await import('../../ah_dashboard/static/js/core/events.js');
+  let changes = 0;
+  const off = on(EV.cart, () => { changes++; });
+  toggleCart(bargain(7, 1));
+  assert.equal(followBargains([bargain(7, 1), bargain(8, 2)]), false);
+  assert.equal(followBargains([bargain(7, 1), bargain(7, 2)]), true);
+  assert.deepEqual(cartEntries().map(e => e.key), ['b:1:7', 'b:2:7']);
+  assert.equal(followBargains([bargain(7, 1), bargain(7, 2)]), false);
+  removeProduct(cartEntries()[1]);
+  assert.equal(cartEntries().length, 0);
+  // The card for one store removes the product at every store too.
+  toggleCart(bargain(7, 1));
+  followBargains([bargain(7, 2)]);
+  toggleCart(bargain(7, 2));
+  assert.equal(cartEntries().length, 0);
+  assert.equal(changes, 6);
+  clearCart();
   off();
 });
