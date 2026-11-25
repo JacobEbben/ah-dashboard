@@ -84,6 +84,11 @@
           </div>
         </div>
       </div>
+      {# Every liked bargain that ends today into the cart (only the selected store's with the store filter);
+         the label counts those not in the cart yet, disabled at 0 (static/js/cart/index.js). #}
+      <div class="segmented todayseg">
+        <button type="button" id="cartLikedToday" class="segbtn segmain" data-i18n-title="cartLikedTodayTitle" disabled></button>
+      </div>
     </div>
     <div class="summaryrow">
       <div id="cartSummary" class="summary" role="status" aria-live="polite"></div>

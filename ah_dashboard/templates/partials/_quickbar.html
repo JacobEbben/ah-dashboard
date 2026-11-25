@@ -1,4 +1,4 @@
-{# The bargains' quick switches: the minimum discount (one tap, always visible), then the presets
+{# The bargains' quick switches: the minimum discount (one tap, always visible), "Ends today", then the presets
    (named product-type selections) as a segmented bar like the discount one, as wide as its presets
    (it grows with each saved preset and scrolls sideways when wider than the page)
    (static/js/bargains/filters.js, presets.js). #}
@@ -7,6 +7,12 @@
   {% for n in (25, 40, 70) %}
   <button type="button" class="segbtn" data-disc="{{ n }}" data-i18n="discPlus" data-n="{{ n }}" aria-pressed="false"></button>
   {% endfor %}
+</div>
+{# Two toggles, remembered like the discount: "Ends today" (only bargains whose last day is today) and
+   "Liked" (only liked products) (static/js/bargains/filters.js). #}
+<div class="segmented todayseg">
+  <button type="button" id="expToday" class="segbtn" data-i18n="expToday" data-i18n-title="expTodayTitle" aria-pressed="false"></button>
+  <button type="button" id="likedOnly" class="segbtn" data-i18n="likedPill" data-i18n-title="likedOnlyTitle" aria-pressed="false"></button>
 </div>
 <div class="quickbar chipstrip">
   {# Presets: "All types" plus the saved product-type selections (drag to reorder, double-click to rename). #}

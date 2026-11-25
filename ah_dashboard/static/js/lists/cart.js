@@ -69,6 +69,24 @@ export function followBargains(items) {
   return true;
 }
 
+/**
+ * Put these offers in the cart (each bargain at its store); what is already in it stays as it is.
+ * Never more than the room left (MAX_CART). Returns how many entries were added.
+ * @param {any[]} offers
+ */
+export function addToCart(offers) {
+  let added = 0;
+  for (const offer of offers) {
+    for (const e of entriesFor(offer, { now: Date.now(), imageHosts: config.imageHosts })) {
+      if (cart.has(e.key) || cart.size >= MAX_CART) continue;
+      cart.set(e.key, e);
+      added++;
+    }
+  }
+  if (added) changed();
+  return added;
+}
+
 /** Remove an entry from the cart view: a bargain at every store, a Bonus deal itself. @param {CartEntry} entry */
 export function removeProduct(entry) {
   removeFromCart(productKeys(cartEntries(), entry));

@@ -20,7 +20,12 @@ import { productKey } from '../core/offers.js';
  * @property {number} minDisc minimum discount in percent (0 = any)
  * @property {boolean} showHidden show hidden products (dimmed)
  * @property {number|null} [storeId] "I'm in this store": only this store's bargains
+ * @property {string|null} [endsOn] "Ends today": only bargains whose last day is this day ('YYYY-MM-DD')
+ * @property {boolean} [likedOnly] "Liked": only liked products
  */
+
+/** Is the bargain's last day ``day`` ('YYYY-MM-DD')? @param {Offer} o @param {string} day */
+export const endsOn = (o, day) => String(o.expires ?? '').slice(0, 10) === day;
 
 /** Product type of an offer ("Overig" without one). @param {Offer} o */
 export function catKey(o) { return (o.category || 'Overig').trim(); }
@@ -38,15 +43,17 @@ export function knownCats(items) {
  * hidden filter left out.
  * @param {Offer[]} items
  * @param {Filter} f
- * @param {{isHidden: (o: Offer) => boolean}} deps
+ * @param {{isHidden: (o: Offer) => boolean, isLiked?: (o: Offer) => boolean}} deps
  * ``otherStores``: with ``storeId``, how many bargains that match the filters
  * are at the other stores (so an empty list never reads as "nothing anywhere").
  * @returns {{items: Offer[], hiddenCount: number, otherStores: number}}
  */
-export function filterOffers(items, f, { isHidden }) {
+export function filterOffers(items, f, { isHidden, isLiked = () => false }) {
   let out = items.slice();
   if (!f.cats.all) out = out.filter(o => f.cats.selected.has(catKey(o)));
   if (f.minDisc > 0) out = out.filter(o => o.discount != null && Number(o.discount) >= f.minDisc);
+  if (f.endsOn) { const day = f.endsOn; out = out.filter(o => endsOn(o, day)); }
+  if (f.likedOnly) out = out.filter(isLiked);
   // Count products, not store entries (one product can be at several stores).
   const hiddenCount = new Set(out.filter(isHidden).map(productKey)).size;
   if (!f.showHidden) out = out.filter(o => !isHidden(o));

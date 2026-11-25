@@ -669,6 +669,13 @@ select.segfield { padding-right: 32px; background-position: right 8px center; }
 .mystore .shere[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
 .discseg { margin-top: 10px; max-width: 460px; height: 46px; }
 .discseg .segbtn { font-size: 14px; }
+/* "Ends today": one toggle, as wide as its text, next to the discount buttons. */
+.todayseg { width: max-content; max-width: 100%; margin-top: 10px; height: 46px; }
+.todayseg { grid-auto-columns: max-content; overflow-x: auto; }
+.todayseg .segbtn { padding: 8px 16px; font-size: 14px; white-space: nowrap; }
+.todayseg .segbtn.segmain { color: var(--accent-ink); }
+.todayseg .segbtn.segmain:hover:not(:disabled) { background: var(--accent); color: var(--on-accent); }
+.todayseg .segbtn:disabled:hover { background: transparent; color: var(--accent-ink); }
 /* Bonus: this week / next week, above the presets bar. */
 .weekseg { width: max-content; max-width: 100%; margin-top: 14px; }
 .weekseg .segbtn { padding: 8px 16px; font-size: 14px; }
@@ -689,6 +696,7 @@ select.segfield { padding-right: 32px; background-position: right 8px center; }
   .quickrows .storestrip { flex: 0 1 auto; }
   .quickrows .chiprow { margin-top: 0; }
   .quickrows .discseg { flex: none; width: 380px; margin-top: 0; }
+  .quickrows .todayseg { flex: none; margin-top: 0; }
   .quickrows .chipstrip { flex: 0 1 auto; display: flex; align-items: center; height: 46px; margin-top: 0; }
 }
 
@@ -720,6 +728,7 @@ select.segfield { padding-right: 32px; background-position: right 8px center; }
   .controls .toolline #forceRefresh { flex: 1 1 100%; padding: 8px 14px; font-size: 13px; }
   .chiprow { height: 44px; margin-top: 10px; }
   .discseg { max-width: none; height: 44px; }
+  .todayseg { height: 44px; }
   .presetseg { height: 44px; }
   .storeseg .storechip { padding: 8px 12px; }
   .chipstrip { margin-top: 8px; }

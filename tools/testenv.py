@@ -44,8 +44,9 @@ STORES = [
 ]
 
 
-def _bargain(pid: int, title: str, category: str, now: str, was: str, pct: int, stock: int) -> dict:
-    expires = (amsterdam_today() + timedelta(days=1)).isoformat()
+def _bargain(pid: int, title: str, category: str, now: str, was: str, pct: int, stock: int, days: int = 1) -> dict:
+    """``days``: how many days from today its last day is (0 = ends today)."""
+    expires = (amsterdam_today() + timedelta(days=days)).isoformat()
     return {
         "product": {"id": pid, "title": title, "brand": "AH", "salesUnitSize": "500 g",
                     "imagePack": [{"medium": {"url": IMG}}]},
@@ -62,11 +63,11 @@ CHEESE = 501   # the product that spreads to a second store (/testenv/spread)
 def bargains_for(store_id: str, spread: bool) -> list[dict]:
     base = {
         "1001": [_bargain(CHEESE, "Testkaas jong belegen", "Kaas", "2.50", "4.99", 50, 3),
-                 _bargain(502, "Volkorenbrood", "Brood", "1.20", "2.39", 50, 2),
+                 _bargain(502, "Volkorenbrood", "Brood", "1.20", "2.39", 50, 2, days=0),
                  _bargain(503, "Kipfilet", "Vlees", "3.89", "5.99", 35, 4)],
-        "1002": [_bargain(504, "Halfvolle melk", "Zuivel", "0.75", "1.49", 50, 6),
+        "1002": [_bargain(504, "Halfvolle melk", "Zuivel", "0.75", "1.49", 50, 6, days=0),
                  _bargain(503, "Kipfilet", "Vlees", "4.49", "5.99", 25, 1)],
-        "1003": [_bargain(505, "Appeltaart", "Gebak", "2.99", "5.99", 50, 1),
+        "1003": [_bargain(505, "Appeltaart", "Gebak", "2.99", "5.99", 50, 1, days=0),
                  _bargain(506, "Bananen", "Fruit", "0.99", "1.99", 0, 8)],
     }
     items = base.get(store_id, [])

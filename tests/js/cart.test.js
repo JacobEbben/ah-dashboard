@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { activeCartStore, bargainKey, bonusKey, cartSections, cleanEntries, cleanEntry, dayOf, entriesAtNewStores, entriesFor,
-  entryStatus, indexBargains, indexBonus, MAX_CART, productKeys, todayOf } from '../../ah_dashboard/static/js/core/cart.js';
+  entryStatus, indexBargains, indexBonus, likedEndingOn, MAX_CART, productKeys, todayOf } from '../../ah_dashboard/static/js/core/cart.js';
 import { mergePrefs } from '../../ah_dashboard/static/js/sync/merge.js';
 import { allowedImageUrl } from '../../ah_dashboard/static/js/core/offers.js';
 
@@ -283,4 +283,24 @@ test('the cart list adds the new stores when bargains load, and the cart view re
   assert.equal(changes, 6);
   clearCart();
   off();
+});
+
+test('adding liked bargains ending today: adds what is missing, keeps what is there', async () => {
+  const { addToCart, cartEntries, clearCart, toggleCart } = await import('../../ah_dashboard/static/js/lists/cart.js');
+  toggleCart(bargain(7, 1));
+  assert.equal(addToCart([bargain(7, 1), bargain(8, 1), bargain(7, 2)]), 2);
+  assert.deepEqual(cartEntries().map(e => e.key), ['b:1:7', 'b:1:8', 'b:2:7']);
+  assert.equal(addToCart([bargain(8, 1)]), 0);            // already there: not toggled off
+  assert.equal(cartEntries().length, 3);
+  clearCart();
+});
+
+test("the cart's liked bargains ending today: not hidden, not Bonus, only the filtered store", () => {
+  const items = [bargain(1, 1, { expires: TODAY }), bargain(2, 2, { expires: `${TODAY}T23:59:00` }),
+    bargain(3, 1, { expires: '2026-11-25' }), bargain(4, 1, { expires: TODAY }), bargain(5, 1, { expires: TODAY }),
+    { ...bonus(6), expires: TODAY }];
+  const d = { isLiked: (/** @type {any} */ o) => o.id !== 5, isHidden: (/** @type {any} */ o) => o.id === 4 };
+  assert.deepEqual(likedEndingOn(items, TODAY, d).map(o => o.id), [1, 2]);
+  assert.deepEqual(likedEndingOn(items, TODAY, { ...d, storeId: 2 }).map(o => o.id), [2]);
+  assert.deepEqual(likedEndingOn(items, '2026-11-27', d), []);
 });

@@ -144,6 +144,19 @@ export function entriesAtNewStores(entries, items, { now, imageHosts = [], room 
 }
 
 /**
+ * The liked bargains whose last day is ``day`` ('YYYY-MM-DD'): what the cart's "🛒 Liked today" adds.
+ * Hidden products are left out; with ``storeId`` (the cart's store filter) only that store's.
+ * @param {any[]} items the latest bargains (one per store)
+ * @param {string} day
+ * @param {{isLiked: (o: any) => boolean, isHidden: (o: any) => boolean, storeId?: number|null}} deps
+ * @returns {any[]}
+ */
+export function likedEndingOn(items, day, { isLiked, isHidden, storeId = null }) {
+  return items.filter(o => o && o.kind !== 'bonus' && dayOf(o.expires) === day && isLiked(o) && !isHidden(o)
+    && (storeId == null || Number(o.storeId) === storeId));
+}
+
+/**
  * The keys to remove with an entry: a bargain is the product at every store
  * (else the next load would add the other stores back); a Bonus deal just itself.
  * @param {CartEntry[]} entries

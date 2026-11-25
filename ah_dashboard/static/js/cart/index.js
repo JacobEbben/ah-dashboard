@@ -13,16 +13,19 @@
 // deals, and to show the Bonus deal next to a bargain whose product is also on Bonus.
 // New bargains also update the cart: a product in it that is now a bargain at another
 // followed store gets an entry there (lists/cart.followBargains).
-// Listens to EV.cart, EV.bargains, EV.bonusStatus, EV.stores, EV.lang.
+// "🛒 Liked today" adds every liked bargain ending today (core/cart.likedEndingOn).
+// Listens to EV.cart, EV.bargains, EV.bonusStatus, EV.stores, EV.lists, EV.lang.
 import { $, html } from '../core/dom.js';
 import { emit, on, EV } from '../core/events.js';
-import { activeCartStore, cartSections, entryStatus, indexBargains, indexBonus, todayOf } from '../core/cart.js';
+import { activeCartStore, cartSections, entryStatus, indexBargains, indexBonus, likedEndingOn, todayOf } from '../core/cart.js';
 import { euro, fmtDate } from '../core/format.js';
 import { t } from '../core/i18n.js';
 import { KEYS, storage } from '../core/storage.js';
 import { config } from '../core/config.js';
 import { allowedImageUrl, productUrl } from '../core/offers.js';
-import { cartEntries, clearCart, followBargains, removeFromCart, removeProduct } from '../lists/cart.js';
+import { addToCart, cartEntries, clearCart, followBargains, inCart, removeFromCart, removeProduct } from '../lists/cart.js';
+import { isHidden } from '../lists/blacklist.js';
+import { isLiked } from '../lists/likes.js';
 import { myStores, storeIdClass } from '../lists/stores.js';
 import { renderStoreBar } from '../ui/storebar.js';
 
@@ -34,6 +37,8 @@ const latest = { bargains: null, bonus: null };
 let askedBonus = false;
 /** @type {Map<number, string>} this week's Bonus deals by product id (EV.bonusStatus) */
 let bonusDeals = new Map();
+/** @type {any[]} the latest bargains (EV.bargains), for "🛒 Liked today" */
+let bargainItems = [];
 /** @type {string[]} keys of the entries that are gone ("Remove unavailable") */
 let goneKeys = [];
 
@@ -137,8 +142,23 @@ function row(r, today) {
   return li;
 }
 
+/** The liked bargains ending today not in the cart yet (with the store filter: only that store's). */
+function likedTodayNotInCart() {
+  return likedEndingOn(bargainItems, todayOf(new Date()), { isLiked, isHidden, storeId: cartStore() })
+    .filter(o => !inCart(o));
+}
+
+/** "🛒 Liked today (n)": how many it would add; disabled at 0. */
+function renderLikedToday() {
+  const n = likedTodayNotInCart().length;
+  const b = /** @type {HTMLButtonElement} */ ($('cartLikedToday'));
+  b.textContent = t('cartLikedToday', n);
+  b.disabled = n === 0;
+}
+
 function renderCart() {
   renderStoreBar(CART_BAR);
+  renderLikedToday();
   const entries = cartEntries();
   const count = $('cartCount');
   count.textContent = entries.length ? String(entries.length) : '';
@@ -184,13 +204,16 @@ function renderCart() {
 /** Call after lists/cart.initCartList() and the bargains (the store list). */
 export function initCart() {
   $('cartClearGone').addEventListener('click', () => removeFromCart(goneKeys));
+  // Every liked bargain ending today into the cart (EV.cart redraws; the count drops to 0).
+  $('cartLikedToday').addEventListener('click', () => addToCart(likedTodayNotInCart()));
   $('cartClear').addEventListener('click', () => {
     const n = cartEntries().length;
     if (n && confirm(t('confirmClearCart', n))) clearCart();
   });
   on(EV.cart, () => { needBonus(); renderCart(); });
   on(EV.bargains, (/** @type {{items: any[], storeIds: number[]}} */ d) => {
-    latest.bargains = indexBargains(d.items || [], d.storeIds || []);
+    bargainItems = d.items || [];
+    latest.bargains = indexBargains(bargainItems, d.storeIds || []);
     // A product in the cart that is now a bargain at another store too gets that store (EV.cart redraws).
     if (!followBargains(d.items || [])) renderCart();
   });
@@ -201,6 +224,7 @@ export function initCart() {
     renderCart();
   });
   on(EV.stores, renderCart);
+  on(EV.lists, renderCart);       // liking or hiding changes "🛒 Liked today"
   on(EV.lang, renderCart);
   renderCart();
   needBonus();

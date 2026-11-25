@@ -1,9 +1,9 @@
 // @ts-check
-// The bargains' filter settings: the minimum-discount buttons, Remove filters,
+// The bargains' filter settings: the minimum-discount buttons, "Ends today", "Liked", Remove filters,
 // and the Filters panel ("also in the Bonus", group by, order by, the product
 // types; presets are named product-type selections, presets.js). The Filters
 // button shows how many of the panel's filters are on. Liking a product is
-// not a filter: liked products only come first among equals (model.sorter). This module owns these settings; when one changes it emits
+// a filter only with "Liked" on; otherwise liked products only come first among equals (model.sorter). This module owns these settings; when one changes it emits
 // EV.refilter (the controller re-renders) and, once saved, EV.settings
 // (presets mark the active one).
 import { $, makeFoldable, setSelect } from '../core/dom.js';
@@ -13,14 +13,16 @@ import { KEYS, storage } from '../core/storage.js';
 import { showHiddenEnabled } from '../lists/blacklist.js';
 import { knownCats } from './model.js';
 import { inStoreId } from '../lists/stores.js';
+import { todayOf } from '../core/cart.js';
 
 /** @typedef {import('./model.js').Cats} Cats */
 /** @typedef {import('./model.js').Filter} Filter */
 /** @typedef {import('../core/offers.js').Offer} Offer */
 /**
- * Settings as always remembered (ah_settings, synced). Older ones may still have likedOnly: ignored. Presets store only ``cats``
+ * Settings as always remembered (ah_settings, synced). Older ones may still have likedOnly (an old, removed
+ * filter): ignored, so it can't switch on the new one (``liked``) by itself. Presets store only ``cats``
  * (older presets have the other fields too; they are ignored).
- * @typedef {{minDisc?: string, sortBy?: string, groupBy?: string, cats?: 'all'|string[]}} Settings
+ * @typedef {{minDisc?: string, endsToday?: boolean, liked?: boolean, sortBy?: string, groupBy?: string, cats?: 'all'|string[]}} Settings
  */
 
 /** @returns {Cats} */
@@ -31,6 +33,10 @@ let cats = ALL_CATS();
 /** Minimum discount in percent, as text: one of the discount buttons' values. */
 let minDiscValue = '0';
 const MIN_DISCS = ['0', '25', '40', '70'];
+/** "Ends today": only bargains whose last day is today. */
+let endsToday = false;
+/** "Liked": only liked products. */
+let likedOnly = false;
 /** @type {() => Offer[]} the loaded bargains (set by initFilters) */
 let items = () => [];
 
@@ -47,7 +53,7 @@ function syncFilterState() {
   count.hidden = n === 0;
   count.textContent = String(n);
   $('filterToggle').setAttribute('aria-label', n ? `${t('filters')}, ${t('filtersActive', n)}` : t('filters'));
-  /** @type {HTMLButtonElement} */ ($('clearFilters')).disabled = n === 0 && minDiscValue === '0';
+  /** @type {HTMLButtonElement} */ ($('clearFilters')).disabled = n === 0 && minDiscValue === '0' && !endsToday && !likedOnly;
 }
 
 // ---- product types -------------------------------------------------------------------
@@ -128,10 +134,28 @@ function setMinDiscValue(value) {
   });
 }
 
+/** The "Ends today" button. @param {unknown} on */
+function setEndsToday(on) {
+  endsToday = on === true;
+  const b = $('expToday');
+  b.classList.toggle('active', endsToday);
+  b.setAttribute('aria-pressed', String(endsToday));
+}
+
+/** The "Liked" button. @param {unknown} on */
+function setLikedOnly(on) {
+  likedOnly = on === true;
+  const b = $('likedOnly');
+  b.classList.toggle('active', likedOnly);
+  b.setAttribute('aria-pressed', String(likedOnly));
+}
+
 /** Current settings as a plain object (what is remembered). @returns {Settings} */
 function currentSettings() {
   return {
     minDisc: minDiscValue,
+    endsToday,
+    liked: likedOnly,
     sortBy: $('sortBy').value,
     groupBy: $('groupBy').value,
     ...catsSetting(),
@@ -145,13 +169,15 @@ export function applyCats(s) {
   refilter();
 }
 
-/** "Remove filters": every product type, any discount, not only Bonus.
+/** "Remove filters": every product type, any discount, any end date, liked or not.
  *  Grouping and order stay (they hide nothing), and so do the stores and
  *  "I'm in this store" (where you are, not a filter). */
 function clearFilters() {
   cats = ALL_CATS();
   updateCatChips();
   setMinDiscValue('0');
+  setEndsToday(false);
+  setLikedOnly(false);
   refilter();
 }
 
@@ -166,6 +192,8 @@ export function currentFilter() {
   return {
     cats,
     minDisc: Number(minDiscValue) || 0,
+    endsOn: endsToday ? todayOf(new Date()) : null,   // today at each render (a page open past midnight follows)
+    likedOnly,
     showHidden: showHiddenEnabled(),
     storeId: inStoreId(),
   };
@@ -195,6 +223,8 @@ export function initFilters(getItems) {
   const saved = storage.getJSON(KEYS.settings);
   if (saved && typeof saved === 'object') {
     setMinDiscValue(saved.minDisc);
+    setEndsToday(saved.endsToday);
+    setLikedOnly(saved.liked);
     setSelect('sortBy', saved.sortBy);
     setSelect('groupBy', saved.groupBy);
     cats = catsFromSettings(saved);
@@ -210,6 +240,8 @@ export function initFilters(getItems) {
     setMinDiscValue(/** @type {HTMLElement} */ (el).dataset.disc);
     refilter();
   }));
+  $('expToday').addEventListener('click', () => { setEndsToday(!endsToday); refilter(); });
+  $('likedOnly').addEventListener('click', () => { setLikedOnly(!likedOnly); refilter(); });
   $('clearFilters').addEventListener('click', clearFilters);
   // Order and grouping keep the overview selection.
   for (const id of ['sortBy', 'groupBy']) $(id).addEventListener('change', () => emit(EV.refilter));

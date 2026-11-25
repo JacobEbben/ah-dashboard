@@ -73,7 +73,7 @@ function refresh() {
   const focused = focusItems(allItems);
   renderFocusBar();
   if (focused) { lastCols = render(focused, { ...common, focused: true }); return; }
-  const result = filterOffers(allItems, currentFilter(), { isHidden });
+  const result = filterOffers(allItems, currentFilter(), { isHidden, isLiked });
   lastCols = render(result.items, { ...common, hiddenCount: result.hiddenCount,
     otherStores: result.otherStores });
 }
