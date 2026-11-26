@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { activeCartStore, bargainKey, bonusKey, cartSections, cleanEntries, cleanEntry, dayOf, entriesAtNewStores, entriesFor,
-  entryStatus, indexBargains, indexBonus, likedEndingOn, MAX_CART, productKeys, todayOf } from '../../ah_dashboard/static/js/core/cart.js';
+  entryStatus, indexBargains, indexBonus, likedEndingOn, MAX_CART, MAX_REMOVED, mergeRemoved, removedOn, todayOf,
+  withoutRemoved, withRemoved } from '../../ah_dashboard/static/js/core/cart.js';
 import { mergePrefs } from '../../ah_dashboard/static/js/sync/merge.js';
 import { allowedImageUrl } from '../../ah_dashboard/static/js/core/offers.js';
 
@@ -256,14 +257,10 @@ test('a bargain in the cart follows its product to stores where it became a barg
   assert.equal(entriesAtNewStores(entriesFor(bonus(7), { now: 1 }), items, { now: 9 }).length, 0);
   // Never more than the room left in the cart.
   assert.deepEqual(entriesAtNewStores(entries, items, { now: 9, room: 1 }).map(e => e.key), ['b:2:7']);
-  // Removing a bargain removes the product at every store; a Bonus deal only itself.
-  const all = [...entries, ...added];
-  assert.deepEqual(productKeys(all, added[0]), ['b:1:7', 'b:2:7', 'b:3:7']);
-  assert.deepEqual(productKeys(all, entries[1]), ['p:7']);
 });
 
-test('the cart list adds the new stores when bargains load, and the cart view removes the product everywhere', async () => {
-  const { cartEntries, clearCart, followBargains, removeProduct, toggleCart } =
+test('the cart list adds the new stores when bargains load; removing is per store and stays removed', async () => {
+  const { cartEntries, clearCart, followBargains, removeEntry, toggleCart } =
     await import('../../ah_dashboard/static/js/lists/cart.js');
   const { on, EV } = await import('../../ah_dashboard/static/js/core/events.js');
   let changes = 0;
@@ -273,13 +270,19 @@ test('the cart list adds the new stores when bargains load, and the cart view re
   assert.equal(followBargains([bargain(7, 1), bargain(7, 2)]), true);
   assert.deepEqual(cartEntries().map(e => e.key), ['b:1:7', 'b:2:7']);
   assert.equal(followBargains([bargain(7, 1), bargain(7, 2)]), false);
-  removeProduct(cartEntries()[1]);
-  assert.equal(cartEntries().length, 0);
-  // The card for one store removes the product at every store too.
-  toggleCart(bargain(7, 1));
-  followBargains([bargain(7, 2)]);
+  // The cart view's ✕ removes it at that store only; the next load doesn't add it back there,
+  // but still adds stores where it became a bargain since.
+  removeEntry(cartEntries()[1]);
+  assert.deepEqual(cartEntries().map(e => e.key), ['b:1:7']);
+  assert.equal(followBargains([bargain(7, 1), bargain(7, 2)]), false);
+  assert.equal(followBargains([bargain(7, 2), bargain(7, 3)]), true);
+  assert.deepEqual(cartEntries().map(e => e.key), ['b:1:7', 'b:3:7']);
+  // The card for one store removes only that store too.
+  toggleCart(bargain(7, 3));
+  assert.deepEqual(cartEntries().map(e => e.key), ['b:1:7']);
+  // Put back on purpose with the card's button: that store counts as removed no more.
   toggleCart(bargain(7, 2));
-  assert.equal(cartEntries().length, 0);
+  assert.deepEqual(cartEntries().map(e => e.key), ['b:1:7', 'b:2:7']);
   assert.equal(changes, 6);
   clearCart();
   off();
@@ -303,4 +306,47 @@ test("the cart's liked bargains ending today: not hidden, not Bonus, only the fi
   assert.deepEqual(likedEndingOn(items, TODAY, d).map(o => o.id), [1, 2]);
   assert.deepEqual(likedEndingOn(items, TODAY, { ...d, storeId: 2 }).map(o => o.id), [2]);
   assert.deepEqual(likedEndingOn(items, '2026-11-27', d), []);
+});
+
+test('what was removed from the cart today: counts only that day, capped, merged across devices', () => {
+  const r = withRemoved(null, ['b:1:7', 'b:2:7'], TODAY);
+  assert.deepEqual(r, { day: TODAY, keys: ['b:1:7', 'b:2:7'] });
+  assert.deepEqual([...removedOn(r, TODAY)], ['b:1:7', 'b:2:7']);
+  assert.equal(removedOn(r, '2026-11-25').size, 0);                       // the next day: forgotten
+  assert.deepEqual(withRemoved(r, ['b:3:8'], '2026-11-25').keys, ['b:3:8']);  // a new day starts over
+  assert.equal(removedOn({ day: TODAY, keys: ['x', 5, 'b:1:7'] }, TODAY).size, 1);
+  assert.equal(removedOn('junk', TODAY).size, 0);
+  const many = Array.from({ length: MAX_REMOVED + 5 }, (_, i) => `b:1:${i}`);
+  const capped = withRemoved(null, many, TODAY).keys;
+  assert.equal(capped.length, MAX_REMOVED);
+  assert.equal(capped[capped.length - 1], `b:1:${MAX_REMOVED + 4}`);       // the oldest are dropped
+  // Put back on purpose: only those keys count as removed no more.
+  assert.deepEqual(withoutRemoved(r, ['b:1:7', 'b:3:7'], TODAY).keys, ['b:2:7']);
+  // Two devices: the same day both, else the later day's.
+  assert.deepEqual(mergeRemoved(r, { day: TODAY, keys: ['b:5:9'] }).keys, ['b:5:9', 'b:1:7', 'b:2:7']);
+  assert.deepEqual(mergeRemoved(r, { day: '2026-11-23', keys: ['b:5:9'] }).keys, ['b:1:7', 'b:2:7']);
+  assert.deepEqual(mergeRemoved({ day: '2026-11-25', keys: ['b:5:9'] }, r).keys, ['b:5:9']);
+  assert.equal(mergeRemoved(null, null), null);
+  const merged = JSON.parse(mergePrefs({ ah_cart_removed: JSON.stringify(r) },
+    { ah_cart_removed: JSON.stringify({ day: TODAY, keys: ['b:5:9'] }) }).ah_cart_removed);
+  assert.deepEqual(merged.keys, ['b:5:9', 'b:1:7', 'b:2:7']);
+});
+
+test('a product removed from the cart stays out of "Liked today" for the rest of the day', async () => {
+  const { addToCart, canAdd, cartEntries, clearCart, removeEntry, toggleCart } =
+    await import('../../ah_dashboard/static/js/lists/cart.js');
+  clearCart();
+  assert.equal(addToCart([bargain(7, 1), bargain(8, 1), bargain(7, 2)]), 3);
+  removeEntry(cartEntries()[0]);                                  // product 7 at store 1 only
+  assert.deepEqual(cartEntries().map(e => e.key), ['b:1:8', 'b:2:7']);
+  assert.ok(!canAdd(bargain(7, 1)) && canAdd(bargain(9, 1)));
+  assert.equal(addToCart([bargain(7, 1), bargain(7, 2), bargain(9, 1)]), 1);   // only the new one
+  assert.deepEqual(cartEntries().map(e => e.key), ['b:1:8', 'b:2:7', 'b:1:9']);
+  // The card's cart button removes it too.
+  toggleCart(bargain(9, 1));
+  assert.equal(addToCart([bargain(9, 1)]), 0);
+  // Emptying the cart forgets what was removed.
+  clearCart();
+  assert.equal(addToCart([bargain(9, 1)]), 1);
+  clearCart();
 });

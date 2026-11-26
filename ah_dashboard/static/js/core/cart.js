@@ -157,16 +157,58 @@ export function likedEndingOn(items, day, { isLiked, isHidden, storeId = null })
 }
 
 /**
- * The keys to remove with an entry: a bargain is the product at every store
- * (else the next load would add the other stores back); a Bonus deal just itself.
- * @param {CartEntry[]} entries
- * @param {CartEntry} entry
- * @returns {string[]}
+ * What the visitor removed from the cart today: ``{day: 'YYYY-MM-DD', keys: [entry key, …]}`` (ah_cart_removed).
+ * Removing is per store (that store may have thrown the product away while AH still lists it): "🛒 Liked today"
+ * and a bargain following its product leave out exactly these keys, so that store's entry stays out for the rest
+ * of the day while other stores still get the product; the next day (or emptying the cart) forgets them.
+ * @typedef {{day: string, keys: string[]}} Removed
  */
-export function productKeys(entries, entry) {
-  if (entry.kind !== 'bargain') return [entry.key];
-  const key = productKey(entry);
-  return entries.filter(e => e.kind === 'bargain' && productKey(e) === key).map(e => e.key);
+
+/** At most this many removed keys are remembered (the record is synced, so it must stay small). */
+export const MAX_REMOVED = 1000;
+const KEY_RE = /^(?:b:[0-9]{1,10}|p):.{1,200}$/;
+
+/**
+ * The removed keys that still count on ``day``: a record of another day (or unusable) counts for nothing.
+ * @param {any} value the stored record (maybe from another device or version)
+ * @param {string} day
+ * @returns {Set<string>}
+ */
+export function removedOn(value, day) {
+  if (!value || typeof value !== 'object' || value.day !== day || !Array.isArray(value.keys)) return new Set();
+  return new Set(value.keys.filter(k => typeof k === 'string' && KEY_RE.test(k)).slice(-MAX_REMOVED));
+}
+
+/**
+ * The record after removing ``keys`` on ``day`` (a record of an earlier day starts over).
+ * @param {any} value @param {string[]} keys @param {string} day
+ * @returns {Removed}
+ */
+export function withRemoved(value, keys, day) {
+  const set = removedOn(value, day);
+  for (const k of keys) { set.delete(k); set.add(k); }       // newest last, so the cap drops the oldest
+  return { day, keys: [...set].slice(-MAX_REMOVED) };
+}
+
+/**
+ * The record after the visitor put ``keys`` in the cart again on purpose (the card's cart button).
+ * @param {any} value @param {string[]} keys @param {string} day
+ * @returns {Removed}
+ */
+export function withoutRemoved(value, keys, day) {
+  const back = new Set(keys);
+  return { day, keys: [...removedOn(value, day)].filter(k => !back.has(k)) };
+}
+
+/**
+ * Two devices' records combined (settings sync): the same day: both; else the later day's.
+ * @param {any} a @param {any} b
+ * @returns {Removed|null}
+ */
+export function mergeRemoved(a, b) {
+  const day = [a, b].map(v => (v && typeof v === 'object' ? dayOf(v.day) : null)).filter(Boolean).sort().pop();
+  if (!day) return null;
+  return withRemoved(b, [...removedOn(a, day)], day);
 }
 
 /**

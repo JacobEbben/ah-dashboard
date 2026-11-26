@@ -13,7 +13,8 @@
 // deals, and to show the Bonus deal next to a bargain whose product is also on Bonus.
 // New bargains also update the cart: a product in it that is now a bargain at another
 // followed store gets an entry there (lists/cart.followBargains).
-// "🛒 Liked today" adds every liked bargain ending today (core/cart.likedEndingOn).
+// "🛒 Liked today" adds every liked bargain ending today (core/cart.likedEndingOn),
+// except what the visitor removed from the cart today (lists/cart.canAdd).
 // Listens to EV.cart, EV.bargains, EV.bonusStatus, EV.stores, EV.lists, EV.lang.
 import { $, html } from '../core/dom.js';
 import { emit, on, EV } from '../core/events.js';
@@ -23,7 +24,7 @@ import { t } from '../core/i18n.js';
 import { KEYS, storage } from '../core/storage.js';
 import { config } from '../core/config.js';
 import { allowedImageUrl, productUrl } from '../core/offers.js';
-import { addToCart, cartEntries, clearCart, followBargains, inCart, removeFromCart, removeProduct } from '../lists/cart.js';
+import { addToCart, canAdd, cartEntries, clearCart, followBargains, removeEntry, removeFromCart } from '../lists/cart.js';
 import { isHidden } from '../lists/blacklist.js';
 import { isLiked } from '../lists/likes.js';
 import { myStores, storeIdClass } from '../lists/stores.js';
@@ -136,16 +137,16 @@ function row(r, today) {
     <span class="cartdisc">${storeStocks(r)}${discountBadge(r)}${bonusNote(r)}</span>
     <span class="cartprices"><span class="now">${now != null ? euro(now) : ''}</span>${was != null && now != null && was > now ? html`<span class="was" title="${t('regularPrice')}">${euro(was)}</span>` : ''}</span>
     <button type="button" class="mini cartdel" title="${t('cartRemove')}" aria-label="${t('cartRemove')}: ${e.title}">✕</button>`;
-  li.querySelector('.cartdel')?.addEventListener('click', () => removeProduct(e));
+  li.querySelector('.cartdel')?.addEventListener('click', () => removeEntry(e));
   const image = li.querySelector('img');
   if (image) image.addEventListener('error', () => { image.parentElement?.classList.add('noimg'); image.remove(); });
   return li;
 }
 
-/** The liked bargains ending today not in the cart yet (with the store filter: only that store's). */
+/** The liked bargains ending today not in the cart yet and not removed from it today (with the store filter: only that store's). */
 function likedTodayNotInCart() {
   return likedEndingOn(bargainItems, todayOf(new Date()), { isLiked, isHidden, storeId: cartStore() })
-    .filter(o => !inCart(o));
+    .filter(canAdd);
 }
 
 /** "🛒 Liked today (n)": how many it would add; disabled at 0. */

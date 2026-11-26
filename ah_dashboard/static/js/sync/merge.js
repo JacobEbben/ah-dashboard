@@ -1,8 +1,9 @@
 // @ts-check
 // Merging this browser's settings with the server's copy, when BOTH changed
 // since the last sync (see sync.js): liked and hidden products, the cart and
-// presets are combined; for every other setting this browser's value wins.
+// presets are combined (what was removed from the cart today too); for every other setting this browser's value wins.
 // Pure functions (no storage, no DOM), so they can be tested on their own.
+import { mergeRemoved } from '../core/cart.js';
 
 /** @typedef {Record<string, string>} Prefs localStorage key -> text value */
 
@@ -40,8 +41,19 @@ export function mergePresets(localText, serverText) {
   return JSON.stringify({ ...server, ...local });
 }
 
+/**
+ * What was removed from the cart today ({day, keys}): both on the same day, else the later day's.
+ * @param {string|null} localText
+ * @param {string|null} serverText
+ */
+export function mergeCartRemoved(localText, serverText) {
+  const merged = mergeRemoved(parse(localText, null), parse(serverText, null));
+  return merged ? JSON.stringify(merged) : localText ?? serverText;
+}
+
 /** @type {Record<string, (local: string|null, server: string|null) => string|null>} */
-const MERGERS = { ah_liked: mergeKeyed, ah_blacklist: mergeKeyed, ah_cart: mergeKeyed, ah_presets: mergePresets };
+const MERGERS = { ah_liked: mergeKeyed, ah_blacklist: mergeKeyed, ah_cart: mergeKeyed, ah_presets: mergePresets,
+  ah_cart_removed: mergeCartRemoved };
 
 /**
  * This browser's settings combined with the server's.
