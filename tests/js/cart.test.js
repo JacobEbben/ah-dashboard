@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { activeCartStore, bargainKey, bargainsFrom, BIG_DISCOUNT, cartMinDiscount, cartSort, MIN_DISC_CHOICES, bonusKey, cartSections, cleanEntries, cleanEntry, dayOf, entriesAtNewStores, entriesFor,
+import { activeCartStore, bargainKey, bargainsFrom, BIG_DISCOUNT, cartMinDiscount, effectiveMinDiscount, minDiscChoices, cartSort, MIN_DISC_CHOICES, bonusKey, cartSections, cleanEntries, cleanEntry, dayOf, entriesAtNewStores, entriesFor,
   entryStatus, indexBargains, indexBonus, likedEndingOn, MAX_CART, MAX_REMOVED, mergeRemoved, removedOn, todayOf,
   withoutRemoved, withRemoved } from '../../ah_dashboard/static/js/core/cart.js';
 import { mergePrefs } from '../../ah_dashboard/static/js/sync/merge.js';
@@ -350,6 +350,23 @@ test("the cart's minimum discount: one of the choices, else 70", () => {
   assert.equal(cartMinDiscount('80'), 80);
   assert.equal(cartMinDiscount(' 40 '), 40);
   for (const bad of [null, '', '75', '0', '100', 'abc', '80abc', '1e2', '-70', {}]) assert.equal(cartMinDiscount(bad), 70);
+});
+
+test("the cart's minimum-discount choices: only the steps bargains have", () => {
+  assert.deepEqual(minDiscChoices(null), MIN_DISC_CHOICES);                       // not loaded yet: all
+  assert.deepEqual(minDiscChoices([bargain(1, 1, { discount: 40 }), bargain(2, 1, { discount: 60 })]), [40, 60]);  // no 50
+  const items = [bargain(1, 1, { discount: 35 }), bargain(2, 2, { discount: 72 }), bargain(3, 1, { discount: null }),
+    { ...bonus(4), discount: 95 }];
+  assert.deepEqual(minDiscChoices(items), [70]);                                  // 72% counts for 70; Bonus ignored
+  assert.deepEqual(minDiscChoices([...items, bargain(5, 1, { discount: 99 })]), [70, 90]);
+  assert.deepEqual(minDiscChoices([bargain(1, 1, { discount: 30 })]), [40]);      // never empty
+  assert.deepEqual(minDiscChoices([]), [40]);
+  const choices = [40, 50, 60, 70];
+  assert.equal(effectiveMinDiscount('90', choices), 70);                          // nearest below the saved one
+  assert.equal(effectiveMinDiscount('50', choices), 50);
+  assert.equal(effectiveMinDiscount(null, choices), 70);
+  assert.equal(effectiveMinDiscount(null, [40, 50]), 50);
+  assert.equal(effectiveMinDiscount('40', [40]), 40);
 });
 
 test('what was removed from the cart today: counts only that day, capped, merged across devices', () => {

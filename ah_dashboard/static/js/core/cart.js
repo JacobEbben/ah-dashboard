@@ -171,6 +171,37 @@ export function cartMinDiscount(saved) {
 }
 
 /**
+ * The choices for "🛒 N%+" that bargains actually have: N is offered only when a bargain's discount falls in
+ * its step, from N up to the next choice (the last: N or more). So bargains with 40% and 60% off offer 40 and
+ * 60, not 50; 72% off counts for 70. The caller passes the bargains that count (not hidden, the cart's store
+ * filter). Before the bargains are loaded (``null``) every choice is offered; when none falls in any step,
+ * only the lowest is (the select is never empty).
+ * @param {any[]|null} items the bargains that count, or null when not loaded yet
+ * @returns {number[]}
+ */
+export function minDiscChoices(items) {
+  if (!items) return [...MIN_DISC_CHOICES];
+  const out = MIN_DISC_CHOICES.filter((c, i) => {
+    const next = MIN_DISC_CHOICES[i + 1] ?? Infinity;
+    return items.some(o => o && o.kind !== 'bonus' && typeof o.discount === 'number' && o.discount >= c && o.discount < next);
+  });
+  return out.length ? out : [MIN_DISC_CHOICES[0]];
+}
+
+/**
+ * The minimum discount "🛒 N%+" uses now: the remembered one if it is on offer, else the highest choice
+ * below it (a saved 90% becomes 80% while nothing has 90% off), else the lowest choice.
+ * The remembered value itself is kept, so it comes back once the bargains reach it again.
+ * @param {unknown} saved what was stored (ah_cart_min_disc) @param {number[]} choices from minDiscChoices
+ * @returns {number}
+ */
+export function effectiveMinDiscount(saved, choices) {
+  const want = cartMinDiscount(saved);
+  const below = choices.filter(c => c <= want);
+  return below.length ? below[below.length - 1] : choices[0];
+}
+
+/**
  * The bargains with at least ``min`` percent off (any end day): what the cart's "🛒 N%+" adds.
  * Hidden products are left out; with ``storeId`` (the cart's store filter) only that store's.
  * @param {any[]} items the latest bargains (one per store)

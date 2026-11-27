@@ -15,15 +15,16 @@
 // followed store gets an entry there (lists/cart.followBargains).
 // "🛒 Liked today" adds every liked bargain ending today (core/cart.likedEndingOn), "🛒 N%+" every
 // bargain with at least N% off (core/cart.bargainsFrom; N picked in #cartMinDisc, kept in ah_cart_min_disc,
-// synced); both skip hidden products and what
-// the visitor removed from the cart today (lists/cart.canAdd).
+// synced; it offers only the N that bargains have, core/cart.minDiscChoices, each with how many it would add);
+// both skip hidden products and what the visitor removed from the cart today (lists/cart.canAdd), and with a store
+// selected in the cart's store bar they (and the select's choices and counts) take only that store's bargains.
 // Each row ends in a strip with its like (lists/likes.toggleLike) and remove buttons.
 // #cartSortSeg orders the rows of each section by name, discount or stock (ah_cart_sort, synced).
 // Listens to EV.cart, EV.bargains, EV.bonusStatus, EV.stores, EV.lists, EV.lang.
 import { $, html } from '../core/dom.js';
 import { emit, on, EV } from '../core/events.js';
-import { activeCartStore, bargainsFrom, cartMinDiscount, cartSections, cartSort, entryStatus, indexBargains, indexBonus, likedEndingOn,
-  MIN_DISC_CHOICES, todayOf } from '../core/cart.js';
+import { activeCartStore, bargainsFrom, BIG_DISCOUNT, cartMinDiscount, cartSections, cartSort, effectiveMinDiscount, entryStatus,
+  indexBargains, indexBonus, likedEndingOn, minDiscChoices, todayOf } from '../core/cart.js';
 import { euro, fmtDate } from '../core/format.js';
 import { t } from '../core/i18n.js';
 import { KEYS, storage } from '../core/storage.js';
@@ -46,6 +47,10 @@ let askedBonus = false;
 let bonusDeals = new Map();
 /** @type {any[]} the latest bargains (EV.bargains), for "🛒 Liked today" */
 let bargainItems = [];
+/** Whether EV.bargains came at least once (before that, #cartMinDisc offers every choice). */
+let bargainsLoaded = false;
+/** The options #cartMinDisc shows now, as 'a,b,c' (redrawn only when they change). */
+let shownChoices = '';
 /** @type {string[]} keys of the entries that are gone ("Remove unavailable") */
 let goneKeys = [];
 
@@ -181,12 +186,18 @@ function renderLikedToday() {
   b.disabled = n === 0;
 }
 
-/** The visitor's minimum discount for "🛒 N%+" (ah_cart_min_disc; 70 by default). */
-const minDiscount = () => cartMinDiscount(storage.get(KEYS.cartMinDisc));
+/** The latest bargains "🛒 N%+" may add: not hidden, only the cart's selected store (all with none selected). */
+const discountable = () => bargainsFrom(bargainItems, 0, { isHidden, storeId: cartStore() });
+
+/** The choices for "🛒 N%+" that those bargains have (core/cart.minDiscChoices). */
+const discChoices = () => minDiscChoices(bargainsLoaded ? discountable() : null);
+
+/** The minimum discount "🛒 N%+" uses: the visitor's (ah_cart_min_disc; 70 by default), or the nearest one on offer. */
+const minDiscount = () => effectiveMinDiscount(storage.get(KEYS.cartMinDisc), discChoices());
 
 /** The bargains with the minimum discount or more off not in the cart yet and not removed from it today. */
-function bigDiscountsNotInCart() {
-  return bargainsFrom(bargainItems, minDiscount(), { isHidden, storeId: cartStore() }).filter(canAdd);
+function bigDiscountsNotInCart(min = minDiscount()) {
+  return bargainsFrom(bargainItems, min, { isHidden, storeId: cartStore() }).filter(canAdd);
 }
 
 /** "🛒 N%+ (n)": how many it would add; disabled at 0. The select next to it picks N. */
@@ -197,7 +208,15 @@ function renderBigDiscount() {
   b.textContent = t('cartBigDiscount', pct, n);
   b.title = t('cartBigDiscountTitle', pct);
   b.disabled = n === 0;
-  /** @type {HTMLSelectElement} */ ($('cartMinDisc')).value = String(pct);
+  const sel = /** @type {HTMLSelectElement} */ ($('cartMinDisc'));
+  // Each choice with how many bargains it would add now (same filter as the button).
+  const options = discChoices().map(c => ({ c, label: t('cartMinDiscOption', c, bigDiscountsNotInCart(c).length) }));
+  const key = options.map(o => `${o.c}:${o.label}`).join('|');
+  if (key !== shownChoices) {
+    shownChoices = key;
+    sel.innerHTML = html`${options.map(o => html`<option value="${o.c}">${o.label}</option>`)}`;
+  }
+  sel.value = String(pct);
 }
 
 /** The visitor's order for the rows (ah_cart_sort; by name by default). */
@@ -276,11 +295,10 @@ export function initCart() {
     if (sort === 'name') storage.remove(KEYS.cartSort); else storage.set(KEYS.cartSort, sort);
     renderCart();
   });
-  $('cartMinDisc').innerHTML = html`${MIN_DISC_CHOICES.map(c => html`<option value="${c}">${c}%</option>`)}`;
   $('cartMinDisc').addEventListener('change', (/** @type {Event} */ ev) => {
     const pct = cartMinDiscount(/** @type {HTMLSelectElement} */ (ev.target).value);
     // The default is stored as "nothing", like other settings at their default.
-    if (pct === cartMinDiscount(null)) storage.remove(KEYS.cartMinDisc); else storage.set(KEYS.cartMinDisc, String(pct));
+    if (pct === BIG_DISCOUNT) storage.remove(KEYS.cartMinDisc); else storage.set(KEYS.cartMinDisc, String(pct));
     renderBigDiscount();
   });
   $('cartClear').addEventListener('click', () => {
@@ -290,6 +308,7 @@ export function initCart() {
   on(EV.cart, () => { needBonus(); renderCart(); });
   on(EV.bargains, (/** @type {{items: any[], storeIds: number[]}} */ d) => {
     bargainItems = d.items || [];
+    bargainsLoaded = true;
     latest.bargains = indexBargains(bargainItems, d.storeIds || []);
     // A product in the cart that is now a bargain at another store too gets that store (EV.cart redraws).
     if (!followBargains(d.items || [])) renderCart();
