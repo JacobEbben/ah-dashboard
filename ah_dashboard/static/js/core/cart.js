@@ -156,6 +156,33 @@ export function likedEndingOn(items, day, { isLiked, isHidden, storeId = null })
     && (storeId == null || Number(o.storeId) === storeId));
 }
 
+/** "🛒 N%+" in the cart: bargains with at least N% off; the visitor picks N (ah_cart_min_disc), else 70. */
+export const BIG_DISCOUNT = 70;
+export const MIN_DISC_CHOICES = [40, 50, 60, 70, 80, 90];
+
+/**
+ * The remembered minimum discount for "🛒 N%+" if it is one of the choices, else BIG_DISCOUNT.
+ * @param {unknown} saved what was stored (maybe from another device or version)
+ * @returns {number}
+ */
+export function cartMinDiscount(saved) {
+  const n = Number(String(saved ?? '').trim() || NaN);
+  return MIN_DISC_CHOICES.includes(n) ? n : BIG_DISCOUNT;
+}
+
+/**
+ * The bargains with at least ``min`` percent off (any end day): what the cart's "🛒 N%+" adds.
+ * Hidden products are left out; with ``storeId`` (the cart's store filter) only that store's.
+ * @param {any[]} items the latest bargains (one per store)
+ * @param {number} min
+ * @param {{isHidden: (o: any) => boolean, storeId?: number|null}} deps
+ * @returns {any[]}
+ */
+export function bargainsFrom(items, min, { isHidden, storeId = null }) {
+  return items.filter(o => o && o.kind !== 'bonus' && typeof o.discount === 'number' && o.discount >= min
+    && !isHidden(o) && (storeId == null || Number(o.storeId) === storeId));
+}
+
 /**
  * What the visitor removed from the cart today: ``{day: 'YYYY-MM-DD', keys: [entry key, …]}`` (ah_cart_removed).
  * Removing is per store (that store may have thrown the product away while AH still lists it): "🛒 Liked today"

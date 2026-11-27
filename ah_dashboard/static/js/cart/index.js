@@ -13,21 +13,26 @@
 // deals, and to show the Bonus deal next to a bargain whose product is also on Bonus.
 // New bargains also update the cart: a product in it that is now a bargain at another
 // followed store gets an entry there (lists/cart.followBargains).
-// "🛒 Liked today" adds every liked bargain ending today (core/cart.likedEndingOn),
-// except what the visitor removed from the cart today (lists/cart.canAdd).
+// "🛒 Liked today" adds every liked bargain ending today (core/cart.likedEndingOn), "🛒 N%+" every
+// bargain with at least N% off (core/cart.bargainsFrom; N picked in #cartMinDisc, kept in ah_cart_min_disc,
+// synced); both skip hidden products and what
+// the visitor removed from the cart today (lists/cart.canAdd).
+// Each row ends in a strip with its like (lists/likes.toggleLike) and remove buttons.
 // Listens to EV.cart, EV.bargains, EV.bonusStatus, EV.stores, EV.lists, EV.lang.
 import { $, html } from '../core/dom.js';
 import { emit, on, EV } from '../core/events.js';
-import { activeCartStore, cartSections, entryStatus, indexBargains, indexBonus, likedEndingOn, todayOf } from '../core/cart.js';
+import { activeCartStore, bargainsFrom, cartMinDiscount, cartSections, entryStatus, indexBargains, indexBonus, likedEndingOn,
+  MIN_DISC_CHOICES, todayOf } from '../core/cart.js';
 import { euro, fmtDate } from '../core/format.js';
 import { t } from '../core/i18n.js';
 import { KEYS, storage } from '../core/storage.js';
 import { config } from '../core/config.js';
-import { allowedImageUrl, productUrl } from '../core/offers.js';
+import { allowedImageUrl, groupSize, productUrl } from '../core/offers.js';
 import { addToCart, canAdd, cartEntries, clearCart, followBargains, removeEntry, removeFromCart } from '../lists/cart.js';
 import { isHidden } from '../lists/blacklist.js';
-import { isLiked } from '../lists/likes.js';
+import { isLiked, toggleLike } from '../lists/likes.js';
 import { myStores, storeIdClass } from '../lists/stores.js';
+import { THUMB_ICON } from '../ui/cards.js';
 import { renderStoreBar } from '../ui/storebar.js';
 
 /** @typedef {import('../core/cart.js').CartRow} CartRow */
@@ -116,6 +121,23 @@ function noteText(r, today) {
     : html`<span>${t('cartUntil', fmtDate(end))}</span>`;
 }
 
+/**
+ * Like / remove at the end of a row, in a strip of the row itself. Liking acts on the live offer when it
+ * is loaded (a Bonus group deal then likes each of its products, like its card), else on the copy.
+ * @param {CartRow} r
+ */
+function rowActions(r) {
+  const e = r.entry;
+  const target = r.current || e;
+  const liked = isLiked(target);
+  const n = groupSize(target);
+  const likeLabel = n ? (liked ? t('unlikeGroup', n) : t('likeGroup', n)) : (liked ? t('unlikeProduct') : t('likeProduct'));
+  return html`<span class="cartacts">
+      <button type="button" class="cartact cartlike${liked ? ' on' : ''}" title="${likeLabel}" aria-label="${likeLabel}: ${e.title}" aria-pressed="${liked ? 'true' : 'false'}">${THUMB_ICON}</button>
+      <button type="button" class="cartact cartdel" title="${t('cartRemove')}" aria-label="${t('cartRemove')}: ${e.title}">✕</button>
+    </span>`;
+}
+
 /** @param {CartRow} r @param {string} today */
 function row(r, today) {
   const e = r.entry;
@@ -136,7 +158,8 @@ function row(r, today) {
     <div class="cartmain">${name}${meta.length ? html`<div class="cartmeta">${meta.map((m, i) => (i ? html` · ${m}` : m))}</div>` : ''}</div>
     <span class="cartdisc">${storeStocks(r)}${discountBadge(r)}${bonusNote(r)}</span>
     <span class="cartprices"><span class="now">${now != null ? euro(now) : ''}</span>${was != null && now != null && was > now ? html`<span class="was" title="${t('regularPrice')}">${euro(was)}</span>` : ''}</span>
-    <button type="button" class="mini cartdel" title="${t('cartRemove')}" aria-label="${t('cartRemove')}: ${e.title}">✕</button>`;
+    ${rowActions(r)}`;
+  li.querySelector('.cartlike')?.addEventListener('click', () => toggleLike(r.current || e));     // EV.lists redraws
   li.querySelector('.cartdel')?.addEventListener('click', () => removeEntry(e));
   const image = li.querySelector('img');
   if (image) image.addEventListener('error', () => { image.parentElement?.classList.add('noimg'); image.remove(); });
@@ -157,9 +180,29 @@ function renderLikedToday() {
   b.disabled = n === 0;
 }
 
+/** The visitor's minimum discount for "🛒 N%+" (ah_cart_min_disc; 70 by default). */
+const minDiscount = () => cartMinDiscount(storage.get(KEYS.cartMinDisc));
+
+/** The bargains with the minimum discount or more off not in the cart yet and not removed from it today. */
+function bigDiscountsNotInCart() {
+  return bargainsFrom(bargainItems, minDiscount(), { isHidden, storeId: cartStore() }).filter(canAdd);
+}
+
+/** "🛒 N%+ (n)": how many it would add; disabled at 0. The select next to it picks N. */
+function renderBigDiscount() {
+  const pct = minDiscount();
+  const n = bigDiscountsNotInCart().length;
+  const b = /** @type {HTMLButtonElement} */ ($('cartBigDiscount'));
+  b.textContent = t('cartBigDiscount', pct, n);
+  b.title = t('cartBigDiscountTitle', pct);
+  b.disabled = n === 0;
+  /** @type {HTMLSelectElement} */ ($('cartMinDisc')).value = String(pct);
+}
+
 function renderCart() {
   renderStoreBar(CART_BAR);
   renderLikedToday();
+  renderBigDiscount();
   const entries = cartEntries();
   const count = $('cartCount');
   count.textContent = entries.length ? String(entries.length) : '';
@@ -207,6 +250,14 @@ export function initCart() {
   $('cartClearGone').addEventListener('click', () => removeFromCart(goneKeys));
   // Every liked bargain ending today into the cart (EV.cart redraws; the count drops to 0).
   $('cartLikedToday').addEventListener('click', () => addToCart(likedTodayNotInCart()));
+  $('cartBigDiscount').addEventListener('click', () => addToCart(bigDiscountsNotInCart()));
+  $('cartMinDisc').innerHTML = html`${MIN_DISC_CHOICES.map(c => html`<option value="${c}">${c}%</option>`)}`;
+  $('cartMinDisc').addEventListener('change', (/** @type {Event} */ ev) => {
+    const pct = cartMinDiscount(/** @type {HTMLSelectElement} */ (ev.target).value);
+    // The default is stored as "nothing", like other settings at their default.
+    if (pct === cartMinDiscount(null)) storage.remove(KEYS.cartMinDisc); else storage.set(KEYS.cartMinDisc, String(pct));
+    renderBigDiscount();
+  });
   $('cartClear').addEventListener('click', () => {
     const n = cartEntries().length;
     if (n && confirm(t('confirmClearCart', n))) clearCart();
@@ -225,7 +276,7 @@ export function initCart() {
     renderCart();
   });
   on(EV.stores, renderCart);
-  on(EV.lists, renderCart);       // liking or hiding changes "🛒 Liked today"
+  on(EV.lists, renderCart);       // liking or hiding changes the rows' likes, "🛒 Liked today" and "🛒 N%+"
   on(EV.lang, renderCart);
   renderCart();
   needBonus();

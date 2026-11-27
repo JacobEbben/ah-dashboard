@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { activeCartStore, bargainKey, bonusKey, cartSections, cleanEntries, cleanEntry, dayOf, entriesAtNewStores, entriesFor,
+import { activeCartStore, bargainKey, bargainsFrom, BIG_DISCOUNT, cartMinDiscount, MIN_DISC_CHOICES, bonusKey, cartSections, cleanEntries, cleanEntry, dayOf, entriesAtNewStores, entriesFor,
   entryStatus, indexBargains, indexBonus, likedEndingOn, MAX_CART, MAX_REMOVED, mergeRemoved, removedOn, todayOf,
   withoutRemoved, withRemoved } from '../../ah_dashboard/static/js/core/cart.js';
 import { mergePrefs } from '../../ah_dashboard/static/js/sync/merge.js';
@@ -306,6 +306,23 @@ test("the cart's liked bargains ending today: not hidden, not Bonus, only the fi
   assert.deepEqual(likedEndingOn(items, TODAY, d).map(o => o.id), [1, 2]);
   assert.deepEqual(likedEndingOn(items, TODAY, { ...d, storeId: 2 }).map(o => o.id), [2]);
   assert.deepEqual(likedEndingOn(items, '2026-11-27', d), []);
+});
+
+test('"🛒 70%+": bargains with at least that discount, not hidden, the store filter respected', () => {
+  const items = [bargain(1, 1, { discount: 70 }), bargain(2, 2, { discount: 85 }), bargain(3, 1, { discount: 69 }),
+    bargain(4, 1, { discount: 90 }), bargain(5, 1, { discount: null }), { ...bonus(6), discount: 80 }];
+  const d = { isHidden: (/** @type {any} */ o) => o.id === 4 };
+  assert.equal(BIG_DISCOUNT, 70);
+  assert.deepEqual(bargainsFrom(items, BIG_DISCOUNT, d).map(o => o.id), [1, 2]);
+  assert.deepEqual(bargainsFrom(items, BIG_DISCOUNT, { ...d, storeId: 2 }).map(o => o.id), [2]);
+  assert.deepEqual(bargainsFrom(items, 85, d).map(o => o.id), [2]);
+});
+
+test("the cart's minimum discount: one of the choices, else 70", () => {
+  assert.ok(MIN_DISC_CHOICES.includes(BIG_DISCOUNT));
+  assert.equal(cartMinDiscount('80'), 80);
+  assert.equal(cartMinDiscount(' 40 '), 40);
+  for (const bad of [null, '', '75', '0', '100', 'abc', '80abc', '1e2', '-70', {}]) assert.equal(cartMinDiscount(bad), 70);
 });
 
 test('what was removed from the cart today: counts only that day, capped, merged across devices', () => {

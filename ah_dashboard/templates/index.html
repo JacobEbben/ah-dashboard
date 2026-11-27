@@ -84,10 +84,13 @@
           </div>
         </div>
       </div>
-      {# Every liked bargain that ends today into the cart (only the selected store's with the store filter);
-         the label counts those not in the cart yet, disabled at 0 (static/js/cart/index.js). #}
+      {# Every liked bargain that ends today, or every bargain with at least the chosen discount (#cartMinDisc,
+         per visitor, synced) off, into the cart (only the selected store's with the store filter); each label
+         counts those not in the cart yet, disabled at 0 (static/js/cart/index.js). #}
       <div class="segmented todayseg">
         <button type="button" id="cartLikedToday" class="segbtn segmain" data-i18n-title="cartLikedTodayTitle" disabled></button>
+        <button type="button" id="cartBigDiscount" class="segbtn segmain" disabled></button>
+        <select id="cartMinDisc" class="segfield cartmindisc" data-i18n-aria="cartMinDiscLabel" data-i18n-title="cartMinDiscLabel"></select>
       </div>
     </div>
     <div class="summaryrow">

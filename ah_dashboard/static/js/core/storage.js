@@ -29,6 +29,7 @@ export const KEYS = {
   inStore: 'ah_instore',         // "I'm in this store": {id, until}; per browser, not synced, expires
   cart: 'ah_cart',                // the cart: [{key, kind, title, …}] (core/cart.js), synced
   cartRemoved: 'ah_cart_removed', // removed from the cart today: {day, keys} (core/cart.removedOn), synced
+  cartMinDisc: 'ah_cart_min_disc', // the cart's "🛒 N%+": the minimum discount, e.g. '70' (core/cart.cartMinDiscount), synced
   cartStore: 'ah_cart_store',     // the cart's store filter: a store id (absent = all stores); per browser, not synced
   cols: 'ah_cols',                // cards per row, '1'..'8' (absent = auto); per browser, not synced
 };

@@ -16,7 +16,9 @@ stores. Scenario switches (plain GET links, test environment only):
     /testenv          shows the current scenario
 
 "Testkaas" is meant for the cart: add it at Centrum, open /testenv/spread,
-reload the page, and the cart should list it under Noord too.
+reload the page, and the cart should list it under Noord too. For the cart's
+"🛒 N%+": 70% (Aardbeien, Griekse yoghurt, Tiramisu), 80% (Zalmfilet at
+Centrum, Biefstuk) and 90% (Zalmfilet at Noord) bargains.
 """
 
 from __future__ import annotations
@@ -64,11 +66,17 @@ def bargains_for(store_id: str, spread: bool) -> list[dict]:
     base = {
         "1001": [_bargain(CHEESE, "Testkaas jong belegen", "Kaas", "2.50", "4.99", 50, 3),
                  _bargain(502, "Volkorenbrood", "Brood", "1.20", "2.39", 50, 2, days=0),
-                 _bargain(503, "Kipfilet", "Vlees", "3.89", "5.99", 35, 4)],
+                 _bargain(503, "Kipfilet", "Vlees", "3.89", "5.99", 35, 4),
+                 _bargain(507, "Aardbeien", "Fruit", "0.99", "3.29", 70, 5, days=0),
+                 _bargain(508, "Zalmfilet", "Vis", "1.19", "5.99", 80, 2)],
         "1002": [_bargain(504, "Halfvolle melk", "Zuivel", "0.75", "1.49", 50, 6, days=0),
-                 _bargain(503, "Kipfilet", "Vlees", "4.49", "5.99", 25, 1)],
+                 _bargain(503, "Kipfilet", "Vlees", "4.49", "5.99", 25, 1),
+                 _bargain(508, "Zalmfilet", "Vis", "0.59", "5.99", 90, 1, days=0),
+                 _bargain(509, "Griekse yoghurt", "Zuivel", "0.69", "2.29", 70, 4)],
         "1003": [_bargain(505, "Appeltaart", "Gebak", "2.99", "5.99", 50, 1, days=0),
-                 _bargain(506, "Bananen", "Fruit", "0.99", "1.99", 0, 8)],
+                 _bargain(506, "Bananen", "Fruit", "0.99", "1.99", 0, 8),
+                 _bargain(510, "Tiramisu", "Gebak", "0.89", "2.99", 70, 3, days=2),
+                 _bargain(511, "Biefstuk", "Vlees", "1.49", "7.49", 80, 1)],
     }
     items = base.get(store_id, [])
     if spread and store_id == "1002":

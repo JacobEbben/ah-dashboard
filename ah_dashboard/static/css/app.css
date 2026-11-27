@@ -676,6 +676,8 @@ select.segfield { padding-right: 32px; background-position: right 8px center; }
 .todayseg .segbtn.segmain { color: var(--accent-ink); }
 .todayseg .segbtn.segmain:hover:not(:disabled) { background: var(--accent); color: var(--on-accent); }
 .todayseg .segbtn:disabled:hover { background: transparent; color: var(--accent-ink); }
+/* The cart's minimum discount for "🛒 N%+", next to that button */
+.todayseg select.cartmindisc { min-width: 0; width: auto; font-size: 14px; font-weight: 700; }
 /* Bonus: this week / next week, above the presets bar. */
 .weekseg { width: max-content; max-width: 100%; margin-top: 14px; }
 .weekseg .segbtn { padding: 8px 16px; font-size: 14px; }
@@ -799,12 +801,29 @@ a.cartname:hover { color: var(--accent-ink); text-decoration: underline; }
 .cartprices .now { font-family: var(--font-display); font-size: 17px; font-weight: 800; color: var(--hot); white-space: nowrap; }
 .cartprices .was { margin: 0; font-size: 12px; color: var(--muted); text-decoration: line-through; white-space: nowrap; }
 .cartrow.gone .cartprices .now { color: var(--muted); }
-.cartdel { padding: 6px 10px; }
+/* Like / remove: a strip at the row's right edge, part of the row (no button plates); a liked product's
+   thumb turns gold like the cards' like, the ✕ turns red on hover. */
+.cartacts { align-self: stretch; display: flex; margin: -8px -12px -8px 0; border-left: 1px solid var(--line); }
+.cartact { width: 42px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 0;
+  background: transparent; color: var(--muted); box-shadow: none; font-size: 15px; font-weight: 700; line-height: 1; }
+.cartact + .cartact { border-left: 1px solid var(--line); }
+.cartact svg { width: 17px; height: 17px; }
+.cartact:hover { background: var(--surface-2); color: var(--ink); }
+.cartlike.on { color: var(--or); }
+.cartlike.on svg { fill: currentColor; fill-opacity: .25; }
+.cartlike:hover { color: var(--or); }
+.cartdel:hover { background: color-mix(in srgb, var(--red) 10%, transparent); color: var(--red); }
+.cartrows .cartrow:first-child .cartacts .cartact:last-child { border-top-right-radius: calc(var(--radius) - 1px); }
+.cartrows .cartrow:last-child .cartacts .cartact:last-child { border-bottom-right-radius: calc(var(--radius) - 1px); }
 @media (max-width: 700px) {
   .cartrow { grid-template-columns: 40px minmax(0, 1fr) auto auto; gap: 4px 10px; padding: 8px 10px; }
   .cartthumb { width: 40px; height: 40px; }
   .cartdisc { grid-column: 2; grid-row: 2; justify-content: flex-start; }
   .cartprices { grid-column: 3; grid-row: 1 / span 2; }
-  .cartdel { grid-column: 4; grid-row: 1 / span 2; }
+  .cartacts { grid-column: 4; grid-row: 1 / span 2; margin: -8px -10px -8px 0; flex-direction: column; }
+  .cartact { width: 40px; flex: 1; }
+  .cartact + .cartact { border-left: 0; border-top: 1px solid var(--line); }
+  .cartrows .cartrow:first-child .cartacts .cartact:last-child { border-top-right-radius: 0; }
+  .cartrows .cartrow:first-child .cartacts .cartact:first-child { border-top-right-radius: calc(var(--radius) - 1px); }
   .cartthumb { grid-row: 1 / span 2; }
 }
