@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { activeCartStore, bargainKey, bargainsFrom, BIG_DISCOUNT, cartMinDiscount, MIN_DISC_CHOICES, bonusKey, cartSections, cleanEntries, cleanEntry, dayOf, entriesAtNewStores, entriesFor,
+import { activeCartStore, bargainKey, bargainsFrom, BIG_DISCOUNT, cartMinDiscount, cartSort, MIN_DISC_CHOICES, bonusKey, cartSections, cleanEntries, cleanEntry, dayOf, entriesAtNewStores, entriesFor,
   entryStatus, indexBargains, indexBonus, likedEndingOn, MAX_CART, MAX_REMOVED, mergeRemoved, removedOn, todayOf,
   withoutRemoved, withRemoved } from '../../ah_dashboard/static/js/core/cart.js';
 import { mergePrefs } from '../../ah_dashboard/static/js/sync/merge.js';
@@ -316,6 +316,33 @@ test('"🛒 70%+": bargains with at least that discount, not hidden, the store f
   assert.deepEqual(bargainsFrom(items, BIG_DISCOUNT, d).map(o => o.id), [1, 2]);
   assert.deepEqual(bargainsFrom(items, BIG_DISCOUNT, { ...d, storeId: 2 }).map(o => o.id), [2]);
   assert.deepEqual(bargainsFrom(items, 85, d).map(o => o.id), [2]);
+});
+
+test('the cart can be ordered by name, discount or stock (gone last, unknown last, then by name)', () => {
+  const items = [bargain(1, 1, { title: 'Appel', discount: 35, stock: 9 }), bargain(2, 1, { title: 'Brood', discount: 70, stock: 1 }),
+    bargain(3, 1, { title: 'Citroen', discount: 50, stock: 4 }), bargain(4, 1, { title: 'Dadels', discount: 70, stock: 4 })];
+  const gone = entriesFor(bargain(5, 1, { title: 'Aardbei', discount: 90 }), { now: 0 })[0];
+  const entries = [...items.flatMap(o => entriesFor(o, { now: 0 })), gone];
+  const latest = { bargains: indexBargains(items, [1]), bonus: null };
+  /** @param {any} sort */
+  const order = sort => cartSections(entries, latest, { today: TODAY, storeId: null, storeOrder: [1], bonusTitle: 'Bonus', sort })
+    .sections[0].rows.map(r => r.entry.title);
+  assert.deepEqual(order('name'), ['Appel', 'Brood', 'Citroen', 'Dadels', 'Aardbei']);
+  assert.deepEqual(order(undefined), order('name'));
+  assert.deepEqual(order('discount'), ['Brood', 'Dadels', 'Citroen', 'Appel', 'Aardbei']);
+  assert.deepEqual(order('stock'), ['Appel', 'Citroen', 'Dadels', 'Brood', 'Aardbei']);
+  // Bonus deals: the discount from their prices; no stock (by name).
+  const deals = [bonus(10, { title: 'X', priceNow: 3, priceWas: 4 }), bonus(11, { title: 'Y', priceNow: 1, priceWas: 4 }),
+    bonus(12, { title: 'W', priceNow: null })].flatMap(o => entriesFor(o, { now: 0, week: WEEK }));
+  const bl = { bargains: null, bonus: indexBonus([], false) };
+  /** @param {any} sort */
+  const bonusOrder = sort => cartSections(deals, bl, { today: TODAY, storeId: null, storeOrder: [], bonusTitle: 'Bonus', sort })
+    .sections[0].rows.map(r => r.entry.title);
+  assert.deepEqual(bonusOrder('discount'), ['Y', 'X', 'W']);
+  assert.deepEqual(bonusOrder('stock'), ['W', 'X', 'Y']);
+  assert.equal(cartSort('discount'), 'discount');
+  assert.equal(cartSort('stock'), 'stock');
+  for (const bad of [null, '', 'name', 'price', 5]) assert.equal(cartSort(bad), 'name');
 });
 
 test("the cart's minimum discount: one of the choices, else 70", () => {

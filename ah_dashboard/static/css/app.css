@@ -678,6 +678,8 @@ select.segfield { padding-right: 32px; background-position: right 8px center; }
 .todayseg .segbtn:disabled:hover { background: transparent; color: var(--accent-ink); }
 /* The cart's minimum discount for "🛒 N%+", next to that button */
 .todayseg select.cartmindisc { min-width: 0; width: auto; font-size: 14px; font-weight: 700; }
+/* The cart's order: "Sort" then Name | Discount | Quantity */
+.todayseg .seglabel { align-self: center; padding: 0 6px 0 10px; font-size: 13px; font-weight: 700; color: var(--muted); }
 /* Bonus: this week / next week, above the presets bar. */
 .weekseg { width: max-content; max-width: 100%; margin-top: 14px; }
 .weekseg .segbtn { padding: 8px 16px; font-size: 14px; }

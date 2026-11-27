@@ -92,6 +92,13 @@
         <button type="button" id="cartBigDiscount" class="segbtn segmain" disabled></button>
         <select id="cartMinDisc" class="segfield cartmindisc" data-i18n-aria="cartMinDiscLabel" data-i18n-title="cartMinDiscLabel"></select>
       </div>
+      {# The order of the rows in each section (per visitor, synced: ah_cart_sort; static/js/cart/index.js). #}
+      <div id="cartSortSeg" class="segmented todayseg cartsortseg" role="group" data-i18n-aria="cartSortLabel">
+        <span class="seglabel" data-i18n="cartSortLabel" aria-hidden="true"></span>
+        <button type="button" class="segbtn active" data-sort="name" aria-pressed="true" data-i18n="cartSortName"></button>
+        <button type="button" class="segbtn" data-sort="discount" aria-pressed="false" data-i18n="cartSortDiscount" data-i18n-title="cartSortDiscountTitle"></button>
+        <button type="button" class="segbtn" data-sort="stock" aria-pressed="false" data-i18n="cartSortStock" data-i18n-title="cartSortStockTitle"></button>
+      </div>
     </div>
     <div class="summaryrow">
       <div id="cartSummary" class="summary" role="status" aria-live="polite"></div>

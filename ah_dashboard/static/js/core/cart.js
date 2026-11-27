@@ -341,20 +341,48 @@ export function entryStatus(entry, latest, today) {
   return { status: p && p.complete ? 'gone' : 'unknown', current: null };
 }
 
+/** How the cart's rows are ordered: by name (the default), by discount or by stock (most first). */
+export const CART_SORTS = /** @type {const} */ (['name', 'discount', 'stock']);
+/** @typedef {'name'|'discount'|'stock'} CartSort */
+
+/**
+ * The remembered order if it is one of CART_SORTS, else 'name'.
+ * @param {unknown} saved
+ * @returns {CartSort}
+ */
+export function cartSort(saved) {
+  return saved === 'discount' || saved === 'stock' ? saved : 'name';
+}
+
+/**
+ * A row's discount in percent, for sorting: a bargain's (latest, else when added); a Bonus deal's
+ * from its prices (the deal text, e.g. "1+1 gratis", has no percentage). null when unknown.
+ * @param {CartRow} r
+ * @returns {number|null}
+ */
+export function rowDiscount(r) {
+  const o = r.current || r.entry;
+  if (r.entry.kind === 'bargain') return num(o.discount) ?? num(r.entry.discount);
+  const now = num(o.priceNow) ?? r.entry.priceNow, was = num(o.priceWas) ?? r.entry.priceWas;
+  return now != null && was != null && was > 0 && was > now ? Math.round((was - now) / was * 100) : null;
+}
+
 /**
  * The cart as sections: one per store (in the visitor's store order, stores no
  * longer followed last), then the Bonus. With ``storeId`` ("I'm in this
  * store") only that store's bargains and the Bonus (national); ``otherStores``
  * counts the bargains left out. Within a section what is gone comes last.
  * ``bonusDeals``: this week's Bonus by product id (bonus/model.indexDeals, also
- * the products of group deals): a bargain also on Bonus gets its deal.
+ * the products of group deals): a bargain also on Bonus gets its deal. ``sort``: the order within a
+ * section after "gone last": by name, or by discount / stock (most first, unknown last, then by name).
  * @param {CartEntry[]} entries
  * @param {Latest} latest
  * @param {{today: string, storeId: number|null, storeOrder: number[], bonusTitle: string,
- *          bonusDeals?: Map<number, string>}} o
+ *          bonusDeals?: Map<number, string>, sort?: CartSort}} o
  * @returns {{sections: CartSection[], shown: number, gone: number, otherStores: number}}
  */
-export function cartSections(entries, latest, { today, storeId, storeOrder, bonusTitle, bonusDeals = new Map() }) {
+export function cartSections(entries, latest, { today, storeId, storeOrder, bonusTitle, bonusDeals = new Map(),
+  sort = 'name' }) {
   /** @type {Map<number|null, CartSection>} */
   const sections = new Map();
   let otherStores = 0, gone = 0, shown = 0;
@@ -399,8 +427,16 @@ export function cartSections(entries, latest, { today, storeId, storeOrder, bonu
   }
   /** @param {CartRow} r */
   const goneLast = r => (r.status === 'gone' ? 1 : 0);
+  /** @type {(r: CartRow) => number|null} */
+  const amount = sort === 'discount' ? rowDiscount : sort === 'stock' ? r => r.stock : () => null;
+  /** Most first; unknown last. @param {CartRow} a @param {CartRow} b */
+  const byAmount = (a, b) => {
+    const x = amount(a), y = amount(b);
+    return x === y ? 0 : x === null ? 1 : y === null ? -1 : y - x;
+  };
   for (const sec of list) {
-    sec.rows.sort((a, b) => goneLast(a) - goneLast(b) || a.entry.title.localeCompare(b.entry.title, 'nl'));
+    sec.rows.sort((a, b) => goneLast(a) - goneLast(b) || byAmount(a, b)
+      || a.entry.title.localeCompare(b.entry.title, 'nl'));
   }
   return { sections: list, shown, gone, otherStores };
 }

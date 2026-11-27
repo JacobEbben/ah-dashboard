@@ -18,10 +18,11 @@
 // synced); both skip hidden products and what
 // the visitor removed from the cart today (lists/cart.canAdd).
 // Each row ends in a strip with its like (lists/likes.toggleLike) and remove buttons.
+// #cartSortSeg orders the rows of each section by name, discount or stock (ah_cart_sort, synced).
 // Listens to EV.cart, EV.bargains, EV.bonusStatus, EV.stores, EV.lists, EV.lang.
 import { $, html } from '../core/dom.js';
 import { emit, on, EV } from '../core/events.js';
-import { activeCartStore, bargainsFrom, cartMinDiscount, cartSections, entryStatus, indexBargains, indexBonus, likedEndingOn,
+import { activeCartStore, bargainsFrom, cartMinDiscount, cartSections, cartSort, entryStatus, indexBargains, indexBonus, likedEndingOn,
   MIN_DISC_CHOICES, todayOf } from '../core/cart.js';
 import { euro, fmtDate } from '../core/format.js';
 import { t } from '../core/i18n.js';
@@ -199,8 +200,23 @@ function renderBigDiscount() {
   /** @type {HTMLSelectElement} */ ($('cartMinDisc')).value = String(pct);
 }
 
+/** The visitor's order for the rows (ah_cart_sort; by name by default). */
+const sortChoice = () => cartSort(storage.get(KEYS.cartSort));
+
+/** Mark the chosen order in #cartSortSeg. */
+function renderSortBar() {
+  const sort = sortChoice();
+  document.querySelectorAll('#cartSortSeg .segbtn').forEach(el => {
+    const b = /** @type {HTMLElement} */ (el);
+    const on = b.dataset.sort === sort;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', String(on));
+  });
+}
+
 function renderCart() {
   renderStoreBar(CART_BAR);
+  renderSortBar();
   renderLikedToday();
   renderBigDiscount();
   const entries = cartEntries();
@@ -223,7 +239,7 @@ function renderCart() {
   }
   const stores = myStores();
   const res = cartSections(entries, latest, { today, storeId: cartStore(), storeOrder: stores.map(s => s.id),
-    bonusTitle: t('viewBonus'), bonusDeals });
+    bonusTitle: t('viewBonus'), bonusDeals, sort: sortChoice() });
   const notes = [
     ...(res.gone ? [t('cartGoneCount', res.gone)] : []),
     ...(res.otherStores ? [t('cartOtherStores', res.otherStores)] : []),
@@ -251,6 +267,15 @@ export function initCart() {
   // Every liked bargain ending today into the cart (EV.cart redraws; the count drops to 0).
   $('cartLikedToday').addEventListener('click', () => addToCart(likedTodayNotInCart()));
   $('cartBigDiscount').addEventListener('click', () => addToCart(bigDiscountsNotInCart()));
+  $('cartSortSeg').addEventListener('click', e => {
+    const b = /** @type {HTMLElement|null} */ (e.target instanceof Element ? e.target.closest('.segbtn') : null);
+    if (!b || !b.dataset.sort) return;
+    const sort = cartSort(b.dataset.sort);
+    if (sort === sortChoice()) return;
+    // The default (by name) is stored as "nothing", like other settings at their default.
+    if (sort === 'name') storage.remove(KEYS.cartSort); else storage.set(KEYS.cartSort, sort);
+    renderCart();
+  });
   $('cartMinDisc').innerHTML = html`${MIN_DISC_CHOICES.map(c => html`<option value="${c}">${c}%</option>`)}`;
   $('cartMinDisc').addEventListener('change', (/** @type {Event} */ ev) => {
     const pct = cartMinDiscount(/** @type {HTMLSelectElement} */ (ev.target).value);
