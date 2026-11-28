@@ -1,5 +1,6 @@
 // @ts-check
-// The bargains' filter settings: the minimum-discount buttons, "Ends today", "Liked", Remove filters,
+// The bargains' filter settings: the minimum-discount buttons, "Ends today", "Liked" / "Not liked"
+// (one or the other), Remove filters,
 // and the Filters panel ("also in the Bonus", group by, order by, the product
 // types; presets are named product-type selections, presets.js). The Filters
 // button shows how many of the panel's filters are on. Liking a product is
@@ -22,7 +23,9 @@ import { todayOf } from '../core/cart.js';
  * Settings as always remembered (ah_settings, synced). Older ones may still have likedOnly (an old, removed
  * filter): ignored, so it can't switch on the new one (``liked``) by itself. Presets store only ``cats``
  * (older presets have the other fields too; they are ignored).
- * @typedef {{minDisc?: string, endsToday?: boolean, liked?: boolean, sortBy?: string, groupBy?: string, cats?: 'all'|string[]}} Settings
+ * ``notLiked``: "Not liked" (only products you haven't liked); never on together with ``liked``.
+ * @typedef {{minDisc?: string, endsToday?: boolean, liked?: boolean, notLiked?: boolean, sortBy?: string, groupBy?: string,
+ *   cats?: 'all'|string[]}} Settings
  */
 
 /** @returns {Cats} */
@@ -37,6 +40,8 @@ const MIN_DISCS = ['0', '25', '40', '70'];
 let endsToday = false;
 /** "Liked": only liked products. */
 let likedOnly = false;
+/** "Not liked": only products not liked (never on together with "Liked"). */
+let notLikedOnly = false;
 /** @type {() => Offer[]} the loaded bargains (set by initFilters) */
 let items = () => [];
 
@@ -53,7 +58,8 @@ function syncFilterState() {
   count.hidden = n === 0;
   count.textContent = String(n);
   $('filterToggle').setAttribute('aria-label', n ? `${t('filters')}, ${t('filtersActive', n)}` : t('filters'));
-  /** @type {HTMLButtonElement} */ ($('clearFilters')).disabled = n === 0 && minDiscValue === '0' && !endsToday && !likedOnly;
+  /** @type {HTMLButtonElement} */ ($('clearFilters')).disabled = n === 0 && minDiscValue === '0' && !endsToday && !likedOnly
+    && !notLikedOnly;
 }
 
 // ---- product types -------------------------------------------------------------------
@@ -150,12 +156,21 @@ function setLikedOnly(on) {
   b.setAttribute('aria-pressed', String(likedOnly));
 }
 
+/** The "Not liked" button. @param {unknown} on */
+function setNotLikedOnly(on) {
+  notLikedOnly = on === true;
+  const b = $('notLikedOnly');
+  b.classList.toggle('active', notLikedOnly);
+  b.setAttribute('aria-pressed', String(notLikedOnly));
+}
+
 /** Current settings as a plain object (what is remembered). @returns {Settings} */
 function currentSettings() {
   return {
     minDisc: minDiscValue,
     endsToday,
     liked: likedOnly,
+    notLiked: notLikedOnly,
     sortBy: $('sortBy').value,
     groupBy: $('groupBy').value,
     ...catsSetting(),
@@ -178,6 +193,7 @@ function clearFilters() {
   setMinDiscValue('0');
   setEndsToday(false);
   setLikedOnly(false);
+  setNotLikedOnly(false);
   refilter();
 }
 
@@ -194,6 +210,7 @@ export function currentFilter() {
     minDisc: Number(minDiscValue) || 0,
     endsOn: endsToday ? todayOf(new Date()) : null,   // today at each render (a page open past midnight follows)
     likedOnly,
+    notLikedOnly,
     showHidden: showHiddenEnabled(),
     storeId: inStoreId(),
   };
@@ -225,6 +242,7 @@ export function initFilters(getItems) {
     setMinDiscValue(saved.minDisc);
     setEndsToday(saved.endsToday);
     setLikedOnly(saved.liked);
+    setNotLikedOnly(saved.notLiked === true && saved.liked !== true);   // both on (edited by hand): Liked wins
     setSelect('sortBy', saved.sortBy);
     setSelect('groupBy', saved.groupBy);
     cats = catsFromSettings(saved);
@@ -241,7 +259,9 @@ export function initFilters(getItems) {
     refilter();
   }));
   $('expToday').addEventListener('click', () => { setEndsToday(!endsToday); refilter(); });
-  $('likedOnly').addEventListener('click', () => { setLikedOnly(!likedOnly); refilter(); });
+  // "Liked" and "Not liked" exclude each other: turning one on turns the other off.
+  $('likedOnly').addEventListener('click', () => { setLikedOnly(!likedOnly); setNotLikedOnly(false); refilter(); });
+  $('notLikedOnly').addEventListener('click', () => { setNotLikedOnly(!notLikedOnly); setLikedOnly(false); refilter(); });
   $('clearFilters').addEventListener('click', clearFilters);
   // Order and grouping keep the overview selection.
   for (const id of ['sortBy', 'groupBy']) $(id).addEventListener('change', () => emit(EV.refilter));

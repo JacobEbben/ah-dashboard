@@ -84,13 +84,15 @@
           </div>
         </div>
       </div>
-      {# Every liked bargain that ends today, or every bargain with at least the chosen discount (#cartMinDisc,
-         per visitor, synced) off, into the cart (only the selected store's with the store filter); each label
-         counts those not in the cart yet, disabled at 0 (static/js/cart/index.js). #}
-      <div class="segmented todayseg">
+      {# "Add to cart", laid out like the Sort bar below: every liked bargain that ends today, or every bargain
+         with at least the chosen discount off (#cartMinDisc, per visitor, synced; its ＋ adds them), only the
+         selected store's with the store filter. "Liked today" and each discount choice count those not in the
+         cart yet; the buttons are disabled at 0 (static/js/cart/index.js). #}
+      <div class="segmented todayseg cartaddseg" role="group" data-i18n-aria="cartAddLabel">
+        <span class="seglabel" data-i18n="cartAddLabel" aria-hidden="true"></span>
         <button type="button" id="cartLikedToday" class="segbtn segmain" data-i18n-title="cartLikedTodayTitle" disabled></button>
-        <button type="button" id="cartBigDiscount" class="segbtn segmain" disabled></button>
         <select id="cartMinDisc" class="segfield cartmindisc" data-i18n-aria="cartMinDiscLabel" data-i18n-title="cartMinDiscLabel"></select>
+        <button type="button" id="cartBigDiscount" class="segbtn segmain segadd" disabled>＋</button>
       </div>
       {# The order of the rows in each section (per visitor, synced: ah_cart_sort; static/js/cart/index.js). #}
       <div id="cartSortSeg" class="segmented todayseg cartsortseg" role="group" data-i18n-aria="cartSortLabel">

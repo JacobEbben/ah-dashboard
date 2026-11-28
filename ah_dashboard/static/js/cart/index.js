@@ -13,7 +13,7 @@
 // deals, and to show the Bonus deal next to a bargain whose product is also on Bonus.
 // New bargains also update the cart: a product in it that is now a bargain at another
 // followed store gets an entry there (lists/cart.followBargains).
-// "🛒 Liked today" adds every liked bargain ending today (core/cart.likedEndingOn), "🛒 N%+" every
+// "Liked today" adds every liked bargain ending today (core/cart.likedEndingOn), the discount ＋ every
 // bargain with at least N% off (core/cart.bargainsFrom; N picked in #cartMinDisc, kept in ah_cart_min_disc,
 // synced; it offers only the N that bargains have, core/cart.minDiscChoices, each with how many it would add);
 // both skip hidden products and what the visitor removed from the cart today (lists/cart.canAdd), and with a store
@@ -45,7 +45,7 @@ const latest = { bargains: null, bonus: null };
 let askedBonus = false;
 /** @type {Map<number, string>} this week's Bonus deals by product id (EV.bonusStatus) */
 let bonusDeals = new Map();
-/** @type {any[]} the latest bargains (EV.bargains), for "🛒 Liked today" */
+/** @type {any[]} the latest bargains (EV.bargains), for "Liked today" */
 let bargainItems = [];
 /** Whether EV.bargains came at least once (before that, #cartMinDisc offers every choice). */
 let bargainsLoaded = false;
@@ -178,7 +178,7 @@ function likedTodayNotInCart() {
     .filter(canAdd);
 }
 
-/** "🛒 Liked today (n)": how many it would add; disabled at 0. */
+/** "Liked today (n)": how many it would add; disabled at 0. */
 function renderLikedToday() {
   const n = likedTodayNotInCart().length;
   const b = /** @type {HTMLButtonElement} */ ($('cartLikedToday'));
@@ -186,13 +186,13 @@ function renderLikedToday() {
   b.disabled = n === 0;
 }
 
-/** The latest bargains "🛒 N%+" may add: not hidden, only the cart's selected store (all with none selected). */
+/** The latest bargains the discount ＋ may add: not hidden, only the cart's selected store (all with none selected). */
 const discountable = () => bargainsFrom(bargainItems, 0, { isHidden, storeId: cartStore() });
 
-/** The choices for "🛒 N%+" that those bargains have (core/cart.minDiscChoices). */
+/** The choices for the discount ＋ that those bargains have (core/cart.minDiscChoices). */
 const discChoices = () => minDiscChoices(bargainsLoaded ? discountable() : null);
 
-/** The minimum discount "🛒 N%+" uses: the visitor's (ah_cart_min_disc; 70 by default), or the nearest one on offer. */
+/** The minimum discount the discount ＋ uses: the visitor's (ah_cart_min_disc; 70 by default), or the nearest one on offer. */
 const minDiscount = () => effectiveMinDiscount(storage.get(KEYS.cartMinDisc), discChoices());
 
 /** The bargains with the minimum discount or more off not in the cart yet and not removed from it today. */
@@ -200,13 +200,13 @@ function bigDiscountsNotInCart(min = minDiscount()) {
   return bargainsFrom(bargainItems, min, { isHidden, storeId: cartStore() }).filter(canAdd);
 }
 
-/** "🛒 N%+ (n)": how many it would add; disabled at 0. The select next to it picks N. */
+/** The select + ＋: the select picks N and shows each choice with how many it would add; ＋ adds them, disabled at 0. */
 function renderBigDiscount() {
   const pct = minDiscount();
   const n = bigDiscountsNotInCart().length;
   const b = /** @type {HTMLButtonElement} */ ($('cartBigDiscount'));
-  b.textContent = t('cartBigDiscount', pct, n);
   b.title = t('cartBigDiscountTitle', pct);
+  b.setAttribute('aria-label', b.title);
   b.disabled = n === 0;
   const sel = /** @type {HTMLSelectElement} */ ($('cartMinDisc'));
   // Each choice with how many bargains it would add now (same filter as the button).
@@ -320,7 +320,7 @@ export function initCart() {
     renderCart();
   });
   on(EV.stores, renderCart);
-  on(EV.lists, renderCart);       // liking or hiding changes the rows' likes, "🛒 Liked today" and "🛒 N%+"
+  on(EV.lists, renderCart);       // liking or hiding changes the rows' likes, "Liked today" and the discount ＋
   on(EV.lang, renderCart);
   renderCart();
   needBonus();

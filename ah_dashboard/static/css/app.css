@@ -676,7 +676,7 @@ select.segfield { padding-right: 32px; background-position: right 8px center; }
 .todayseg .segbtn.segmain { color: var(--accent-ink); }
 .todayseg .segbtn.segmain:hover:not(:disabled) { background: var(--accent); color: var(--on-accent); }
 .todayseg .segbtn:disabled:hover { background: transparent; color: var(--accent-ink); }
-/* The cart's minimum discount for "🛒 N%+", next to that button */
+/* The cart's "Add to cart" bar: the minimum discount (with its count), then its ＋ */
 .todayseg select.cartmindisc { min-width: 0; width: auto; font-size: 14px; font-weight: 700; }
 /* The cart's order: "Sort" then Name | Discount | Quantity */
 .todayseg .seglabel { align-self: center; padding: 0 6px 0 10px; font-size: 13px; font-weight: 700; color: var(--muted); }

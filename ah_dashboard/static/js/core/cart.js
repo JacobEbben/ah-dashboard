@@ -144,7 +144,7 @@ export function entriesAtNewStores(entries, items, { now, imageHosts = [], room 
 }
 
 /**
- * The liked bargains whose last day is ``day`` ('YYYY-MM-DD'): what the cart's "🛒 Liked today" adds.
+ * The liked bargains whose last day is ``day`` ('YYYY-MM-DD'): what the cart's "Liked today" adds.
  * Hidden products are left out; with ``storeId`` (the cart's store filter) only that store's.
  * @param {any[]} items the latest bargains (one per store)
  * @param {string} day
@@ -156,12 +156,12 @@ export function likedEndingOn(items, day, { isLiked, isHidden, storeId = null })
     && (storeId == null || Number(o.storeId) === storeId));
 }
 
-/** "🛒 N%+" in the cart: bargains with at least N% off; the visitor picks N (ah_cart_min_disc), else 70. */
+/** the discount ＋ in the cart: bargains with at least N% off; the visitor picks N (ah_cart_min_disc), else 70. */
 export const BIG_DISCOUNT = 70;
 export const MIN_DISC_CHOICES = [40, 50, 60, 70, 80, 90];
 
 /**
- * The remembered minimum discount for "🛒 N%+" if it is one of the choices, else BIG_DISCOUNT.
+ * The remembered minimum discount for the discount ＋ if it is one of the choices, else BIG_DISCOUNT.
  * @param {unknown} saved what was stored (maybe from another device or version)
  * @returns {number}
  */
@@ -171,7 +171,7 @@ export function cartMinDiscount(saved) {
 }
 
 /**
- * The choices for "🛒 N%+" that bargains actually have: N is offered only when a bargain's discount falls in
+ * The choices for the discount ＋ that bargains actually have: N is offered only when a bargain's discount falls in
  * its step, from N up to the next choice (the last: N or more). So bargains with 40% and 60% off offer 40 and
  * 60, not 50; 72% off counts for 70. The caller passes the bargains that count (not hidden, the cart's store
  * filter). Before the bargains are loaded (``null``) every choice is offered; when none falls in any step,
@@ -189,7 +189,7 @@ export function minDiscChoices(items) {
 }
 
 /**
- * The minimum discount "🛒 N%+" uses now: the remembered one if it is on offer, else the highest choice
+ * The minimum discount the discount ＋ uses now: the remembered one if it is on offer, else the highest choice
  * below it (a saved 90% becomes 80% while nothing has 90% off), else the lowest choice.
  * The remembered value itself is kept, so it comes back once the bargains reach it again.
  * @param {unknown} saved what was stored (ah_cart_min_disc) @param {number[]} choices from minDiscChoices
@@ -202,7 +202,7 @@ export function effectiveMinDiscount(saved, choices) {
 }
 
 /**
- * The bargains with at least ``min`` percent off (any end day): what the cart's "🛒 N%+" adds.
+ * The bargains with at least ``min`` percent off (any end day): what the cart's the discount ＋ adds.
  * Hidden products are left out; with ``storeId`` (the cart's store filter) only that store's.
  * @param {any[]} items the latest bargains (one per store)
  * @param {number} min
@@ -216,7 +216,7 @@ export function bargainsFrom(items, min, { isHidden, storeId = null }) {
 
 /**
  * What the visitor removed from the cart today: ``{day: 'YYYY-MM-DD', keys: [entry key, …]}`` (ah_cart_removed).
- * Removing is per store (that store may have thrown the product away while AH still lists it): "🛒 Liked today"
+ * Removing is per store (that store may have thrown the product away while AH still lists it): "Liked today"
  * and a bargain following its product leave out exactly these keys, so that store's entry stays out for the rest
  * of the day while other stores still get the product; the next day (or emptying the cart) forgets them.
  * @typedef {{day: string, keys: string[]}} Removed
@@ -406,6 +406,7 @@ export function rowDiscount(r) {
  * ``bonusDeals``: this week's Bonus by product id (bonus/model.indexDeals, also
  * the products of group deals): a bargain also on Bonus gets its deal. ``sort``: the order within a
  * section after "gone last": by name, or by discount / stock (most first, unknown last, then by name).
+ * By discount, a bargain that is also on Bonus (``bonusDeal``) comes first among rows with the same discount.
  * @param {CartEntry[]} entries
  * @param {Latest} latest
  * @param {{today: string, storeId: number|null, storeOrder: number[], bonusTitle: string,
@@ -465,8 +466,10 @@ export function cartSections(entries, latest, { today, storeId, storeOrder, bonu
     const x = amount(a), y = amount(b);
     return x === y ? 0 : x === null ? 1 : y === null ? -1 : y - x;
   };
+  /** By discount: also on Bonus first among equals. @param {CartRow} r */
+  const bonusFirst = r => (sort === 'discount' && r.bonusDeal !== null ? 0 : 1);
   for (const sec of list) {
-    sec.rows.sort((a, b) => goneLast(a) - goneLast(b) || byAmount(a, b)
+    sec.rows.sort((a, b) => goneLast(a) - goneLast(b) || byAmount(a, b) || bonusFirst(a) - bonusFirst(b)
       || a.entry.title.localeCompare(b.entry.title, 'nl'));
   }
   return { sections: list, shown, gone, otherStores };

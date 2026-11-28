@@ -41,6 +41,10 @@ test('Ends today and Liked: only bargains whose last day is the day, only liked 
   assert.deepEqual(ids({ likedOnly: true }, { isLiked }), [2, 3]);
   assert.deepEqual(ids({ likedOnly: true }), []);                       // nothing liked: nothing shown
   assert.deepEqual(ids({ likedOnly: true, endsOn: '2026-11-25' }, { isLiked }), [2]);
+  // "Not liked": the rest.
+  assert.deepEqual(ids({ notLikedOnly: true }, { isLiked }), [1, 4]);
+  assert.deepEqual(ids({ notLikedOnly: true }), [1, 2, 3, 4]);            // nothing liked: everything shown
+  assert.deepEqual(ids({ notLikedOnly: true, endsOn: '2026-11-25' }, { isLiked }), [1]);
 });
 
 test("I'm in this store: lasts 2 hours, never past midnight, only for followed stores", () => {

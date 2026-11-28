@@ -4,7 +4,7 @@
 // list of entries (core/cart.js), newest last. Changes are announced with
 // EV.cart; the cart view and the cards re-render themselves.
 // Removing is per store. What the visitor removes is remembered for the rest of the day
-// (ah_cart_removed, synced too): "🛒 Liked today" and following a product to other stores
+// (ah_cart_removed, synced too): "Liked today" and following a product to other stores
 // don't put that store's entry back; other stores still get the product.
 import { config } from '../core/config.js';
 import { emit, EV } from '../core/events.js';
@@ -42,7 +42,7 @@ function unremember(entries) {
 }
 
 /**
- * Whether "🛒 Liked today" would put (part of) this offer in the cart: one of its entries is
+ * Whether "Liked today" would put (part of) this offer in the cart: one of its entries is
  * neither in the cart nor removed today.
  * @param {any} offer
  */
@@ -142,7 +142,7 @@ export function removeFromCart(keys) {
   if (any) changed();
 }
 
-/** Empty the cart; it also forgets what was removed today (so "🛒 Liked today" can add everything again). */
+/** Empty the cart; it also forgets what was removed today (so "Liked today" can add everything again). */
 export function clearCart() {
   removed = null;
   storage.remove(KEYS.cartRemoved);

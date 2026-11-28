@@ -331,6 +331,13 @@ test('the cart can be ordered by name, discount or stock (gone last, unknown las
   assert.deepEqual(order(undefined), order('name'));
   assert.deepEqual(order('discount'), ['Brood', 'Dadels', 'Citroen', 'Appel', 'Aardbei']);
   assert.deepEqual(order('stock'), ['Appel', 'Citroen', 'Dadels', 'Brood', 'Aardbei']);
+  // By discount, also on Bonus comes first among the same discount (Dadels before Brood); not by name or stock.
+  /** @param {any} sort */
+  const orderBonus = sort => cartSections(entries, latest, { today: TODAY, storeId: null, storeOrder: [1], bonusTitle: 'Bonus',
+    bonusDeals: new Map([[4, '1+1 gratis'], [3, '']]), sort }).sections[0].rows.map(r => r.entry.title);
+  assert.deepEqual(orderBonus('discount'), ['Dadels', 'Brood', 'Citroen', 'Appel', 'Aardbei']);
+  assert.deepEqual(orderBonus('name'), order('name'));
+  assert.deepEqual(orderBonus('stock'), order('stock'));
   // Bonus deals: the discount from their prices; no stock (by name).
   const deals = [bonus(10, { title: 'X', priceNow: 3, priceWas: 4 }), bonus(11, { title: 'Y', priceNow: 1, priceWas: 4 }),
     bonus(12, { title: 'W', priceNow: null })].flatMap(o => entriesFor(o, { now: 0, week: WEEK }));

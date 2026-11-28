@@ -22,6 +22,7 @@ import { productKey } from '../core/offers.js';
  * @property {number|null} [storeId] "I'm in this store": only this store's bargains
  * @property {string|null} [endsOn] "Ends today": only bargains whose last day is this day ('YYYY-MM-DD')
  * @property {boolean} [likedOnly] "Liked": only liked products
+ * @property {boolean} [notLikedOnly] "Not liked": only products not liked
  */
 
 /** Is the bargain's last day ``day`` ('YYYY-MM-DD')? @param {Offer} o @param {string} day */
@@ -54,6 +55,7 @@ export function filterOffers(items, f, { isHidden, isLiked = () => false }) {
   if (f.minDisc > 0) out = out.filter(o => o.discount != null && Number(o.discount) >= f.minDisc);
   if (f.endsOn) { const day = f.endsOn; out = out.filter(o => endsOn(o, day)); }
   if (f.likedOnly) out = out.filter(isLiked);
+  if (f.notLikedOnly) out = out.filter(o => !isLiked(o));
   // Count products, not store entries (one product can be at several stores).
   const hiddenCount = new Set(out.filter(isHidden).map(productKey)).size;
   if (!f.showHidden) out = out.filter(o => !isHidden(o));
